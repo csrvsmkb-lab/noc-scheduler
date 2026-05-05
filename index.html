@@ -859,7 +859,9 @@ function renderSchedule(result, fromCache){
       </div></td>`;
     for(const d of DAYS) for(const sh of getShiftNames()){
       const assigned=schedule[d]?.[sh]?.includes(w.name);
-      const blocked=w.blockedDays.includes(d);
+      const isDayAbsent=w.absenceDays&&w.absenceDays.includes(d);
+      const absIcon=isDayAbsent?(w.absenceType==='vacation'?'🏖️':'🤒'):'';
+      const blocked=w.blockedDays.includes(d)||isDayAbsent;
       const isLast=sh===getShiftNames()[getShiftNames().length-1];
       const br=isLast?'border-right:1px solid var(--border)':'';
       if(assigned) html+=`<td style="${br}"><span class="pill p${getShiftCode(sh)}">${sh==='בוקר'?'ב':sh==='צהריים'?'צ':'ל'}</span></td>`;
