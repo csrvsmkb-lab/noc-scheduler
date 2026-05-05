@@ -18,7 +18,7 @@ from datetime import datetime
 # ─────────────────────────────────────────────────────────
 #  CONFIG
 # ─────────────────────────────────────────────────────────
-PORT     = int(os.environ.get('PORT', 3000))
+PORT     = int(os.environ.get('PORT', 10000))
 DB_FILE  = Path(__file__).parent / 'noc.db'
 FOLDER   = Path(__file__).parent
 SESSION_TTL = 8 * 60 * 60  # 8 hours
@@ -54,6 +54,19 @@ def init_db():
             FOREIGN KEY(user_id) REFERENCES users(id)
         );
         """)
+    # Auto-create or update admin user from environment
+    admin_pass = os.environ.get('ADMIN_PASSWORD', 'admin1234')
+    with get_db() as db:
+        existing = db.execute("SELECT id FROM users WHERE username=?", (ADMIN_USERNAME,)).fetchone()
+        if existing:
+            # Update password in case it changed
+            db.execute("UPDATE users SET password=? WHERE username=?",
+                      (hash_password(admin_pass), ADMIN_USERNAME))
+            print(f"  Admin password updated for: {ADMIN_USERNAME}")
+        else:
+            db.execute("INSERT INTO users (username, password) VALUES (?,?)",
+                      (ADMIN_USERNAME, hash_password(admin_pass)))
+            print(f"  Admin user created: {ADMIN_USERNAME}")
     print("  Database ready:", DB_FILE)
 
 def hash_password(pw):
