@@ -602,20 +602,19 @@ function buildSchedule(){
 }
 
 function runAlgorithm(C){
-  // Init
+  const shiftNames = getShiftNames();
   const schedule = {};
-  for(const d of DAYS){ schedule[d]={}; for(const sh of getShiftNames()) schedule[d][sh]=[]; }
+  for(const d of DAYS){ schedule[d]={}; for(const sh of shiftNames) schedule[d][sh]=[]; }
 
-  // Per-worker state
+  // Per-worker tracking
   const st = {};
   for(const w of workers){
-    st[w.name]={ total:0, nights:0, weekdays:0, weekend:0,
-                 byDay: Array(7).fill(null) }; // dayIdx -> shift name or null
+    st[w.name]={ total:0, nights:0, weekdays:0, weekend:0, byDay:Array(7).fill(null) };
   }
 
   const violations = [];
-
-  function didNight(name, di){ return st[name].byDay[di]==='לילה'; }
+  const nightShift = shiftNames[shiftNames.length-1];
+  const morningShift = shiftNames[0];
 
   function consecutiveBefore(name, di){
     let n=0;
@@ -623,54 +622,63 @@ function runAlgorithm(C){
     return n;
   }
 
-  for(let di=0; di<DAYS.length; di++){
-    const day  = DAYS[di];
-    const isWE = WEEKEND_DAYS.has(day);
+  // Try multiple passes to maximize coverage
+  for(let pass=0; pass<3; pass++){
+    for(let di=0; di<DAYS.length; di++){
+      const day  = DAYS[di];
+      const isWE = WEEKEND_DAYS.has(day);
 
-    for(const sh of getShiftNames()){
-      const isNight   = getShiftNames().indexOf(sh)===getShiftNames().length-1;
-      const isMorning = getShiftNames().indexOf(sh)===0;
+      for(const sh of shiftNames){
+        const isNight   = sh===nightShift;
+        const isMorning = sh===morningShift;
+        const current   = schedule[day][sh].length;
+        if(current >= C.cover) continue; // already filled
 
-      const candidates = workers.map(w=>{
-        const c = st[w.name];
+        const needed = C.cover - current;
 
-        // Hard constraints
-        if(w.blockedDays.includes(day)) return null;           // blocked day
-        if(c.byDay[di]!==null) return null;                    // already working today
-        if(isMorning && di>0 && didNight(w.name,di-1)) return null; // rest after night
-        if(consecutiveBefore(w.name,di) >= C.consec) return null;   // consecutive limit
-        if(isNight && c.nights >= C.nights) return null;       // nights limit
-        if(!isWE && c.weekdays >= C.wkmax) return null;        // weekday limit (Sun-Thu only)
+        const candidates = workers.map(w=>{
+          const c = st[w.name];
+          if(w.blockedDays.includes(day)) return null;
+          if(c.byDay[di]!==null) return null;
+          if(isMorning && di>0 && st[w.name].byDay[di-1]===nightShift) return null;
+          if(consecutiveBefore(w.name,di) >= C.consec) return null;
+          if(isNight && c.nights >= C.nights) return null;
+          // relaxed weekday limit on pass 2+
+          if(!isWE && pass===0 && c.weekdays >= C.wkmax) return null;
+          if(!isWE && pass>=1 && c.weekdays >= C.wkmax+1) return null;
 
-        // Soft score — lower = more preferred
-        let score = c.total * 100;
-        if(w.prefShifts.length && !w.prefShifts.includes(sh)) score += 30;
-        if(isNight) score += c.nights * 20;
-        if(isWE)    score += c.weekend * 15;
-        score += Math.random() * 5; // tiebreak
+          let score = c.total * 50;
+          if(w.prefShifts.length && !w.prefShifts.includes(sh)) score += 20;
+          if(isNight) score += c.nights * 15;
+          if(isWE)    score += c.weekend * 10;
+          score += Math.random() * 3;
+          return {w, score};
+        }).filter(Boolean);
 
-        return {w, score};
-      }).filter(Boolean);
+        candidates.sort((a,b)=>a.score-b.score);
+        const toAssign = candidates.slice(0, needed);
 
-      candidates.sort((a,b)=>a.score-b.score);
-      const toAssign = candidates.slice(0, C.cover);
-
-      for(const {w} of toAssign){
-        schedule[day][sh].push(w.name);
-        const c = st[w.name];
-        c.total++;
-        c.byDay[di] = sh;
-        if(isNight) c.nights++;
-        if(isWE) c.weekend++; else c.weekdays++;
-      }
-
-      if(schedule[day][sh].length < C.cover){
-        violations.push(`${day} ${sh}: ${schedule[day][sh].length}/${C.cover} עובדים`);
+        for(const {w} of toAssign){
+          schedule[day][sh].push(w.name);
+          const c = st[w.name];
+          c.total++;
+          c.byDay[di] = sh;
+          if(isNight) c.nights++;
+          if(isWE) c.weekend++; else c.weekdays++;
+        }
       }
     }
   }
 
-  // Stats
+  // Report violations
+  for(const d of DAYS){
+    for(const sh of shiftNames){
+      if(schedule[d][sh].length < C.cover){
+        violations.push(`${d} ${sh}: ${schedule[d][sh].length}/${C.cover} עובדים`);
+      }
+    }
+  }
+
   const stats={};
   for(const w of workers){
     const c=st[w.name];
@@ -682,7 +690,7 @@ function runAlgorithm(C){
   const notes=
     `הלוח נבנה עבור ${workers.length} עובדים — סה״כ ${totalShifts} משמרות.\n`+
     (ok?'✓ כל האילוצים מולאו בהצלחה.':
-        `⚠️ ${violations.length} משמרות לא מולאו במלואן.\n💡 טיפ: הפחת את מינ׳ הכיסוי או הוסף עובדים.`);
+        `⚠️ ${violations.length} משמרות לא מולאו במלואן.\n💡 טיפ: הפחת את מינ׳ הכיסוי, הגדל את מקס׳ משמרות א-ה, או הוסף עובדים.`);
 
   return {schedule, stats, violations, notes};
 }
