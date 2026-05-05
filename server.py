@@ -33,14 +33,21 @@ def get_db():
     return conn
 
 def init_db():
+    # Reset DB if requested
+    if os.environ.get('RESET_DB') == '1' and DB_FILE.exists():
+        DB_FILE.unlink()
+        print("  Database reset!")
     with get_db() as db:
         db.executescript("""
         CREATE TABLE IF NOT EXISTS users (
             id       INTEGER PRIMARY KEY AUTOINCREMENT,
             username TEXT UNIQUE NOT NULL,
             password TEXT NOT NULL,
+            is_admin INTEGER DEFAULT 0,
             created  TEXT DEFAULT (datetime('now'))
         );
+        -- Add is_admin column if upgrading from old db
+        CREATE TABLE IF NOT EXISTS _migrate_done (id INTEGER PRIMARY KEY);
         CREATE TABLE IF NOT EXISTS sessions (
             token    TEXT PRIMARY KEY,
             user_id  INTEGER NOT NULL,
@@ -54,19 +61,26 @@ def init_db():
             FOREIGN KEY(user_id) REFERENCES users(id)
         );
         """)
+    # Migrate: add is_admin column if missing
+    try:
+        with get_db() as db:
+            db.execute("ALTER TABLE users ADD COLUMN is_admin INTEGER DEFAULT 0")
+            print("  Migrated: added is_admin column")
+    except Exception:
+        pass  # Column already exists
+
     # Auto-create or update admin user from environment
     admin_pass = os.environ.get('ADMIN_PASSWORD', 'admin1234')
     with get_db() as db:
         existing = db.execute("SELECT id FROM users WHERE username=?", (ADMIN_USERNAME,)).fetchone()
         if existing:
-            # Update password in case it changed
-            db.execute("UPDATE users SET password=? WHERE username=?",
+            db.execute("UPDATE users SET password=?, is_admin=1 WHERE username=?",
                       (hash_password(admin_pass), ADMIN_USERNAME))
-            print(f"  Admin password updated for: {ADMIN_USERNAME}")
+            print(f"  Admin updated: {ADMIN_USERNAME}")
         else:
-            db.execute("INSERT INTO users (username, password) VALUES (?,?)",
+            db.execute("INSERT INTO users (username, password, is_admin) VALUES (?,?,1)",
                       (ADMIN_USERNAME, hash_password(admin_pass)))
-            print(f"  Admin user created: {ADMIN_USERNAME}")
+            print(f"  Admin created: {ADMIN_USERNAME}")
     print("  Database ready:", DB_FILE)
 
 def hash_password(pw):
@@ -202,7 +216,10 @@ class Handler(http.server.BaseHTTPRequestHandler):
                 with get_db() as db:
                     row = db.execute("SELECT username FROM users WHERE id=?", (user_id,)).fetchone()
                 username = row['username'] if row else ''
-                return self.send_json(200, {'authed': True, 'username': username, 'isAdmin': username == ADMIN_USERNAME})
+                with get_db() as db2:
+                    urow = db2.execute("SELECT is_admin FROM users WHERE id=?", (user_id,)).fetchone()
+                    is_admin_flag = bool(urow and urow['is_admin'])
+                return self.send_json(200, {'authed': True, 'username': username, 'isAdmin': is_admin_flag or username == ADMIN_USERNAME})
             return self.send_json(200, {'authed': False, 'isAdmin': False})
 
         if path == '/api/data':
@@ -246,7 +263,7 @@ class Handler(http.server.BaseHTTPRequestHandler):
             if req_user_id:
                 with get_db() as db:
                     row = db.execute("SELECT username FROM users WHERE id=?", (req_user_id,)).fetchone()
-                    is_admin = row and row['username'] == ADMIN_USERNAME
+                    is_admin = row and (row['username'] == ADMIN_USERNAME or row.get('is_admin', 0) == 1)
             # Allow first user creation (no users yet) or admin
             if not is_admin and count_users() > 0:
                 return self.send_json(403, {'error': 'רק מנהל המערכת יכול ליצור משתמשים'})
@@ -297,8 +314,21 @@ class Handler(http.server.BaseHTTPRequestHandler):
                 row = db.execute("SELECT username FROM users WHERE id=?", (req_user_id,)).fetchone()
                 if not row or row['username'] != ADMIN_USERNAME:
                     return self.send_json(403, {'error': 'אין הרשאה'})
-                users = db.execute("SELECT id, username, created FROM users ORDER BY created").fetchall()
-                return self.send_json(200, {'users': [{'id':u['id'],'username':u['username'],'created':u['created']} for u in users]})
+                users = db.execute("SELECT id, username, is_admin, created FROM users ORDER BY created").fetchall()
+                return self.send_json(200, {'users': [{'id':u['id'],'username':u['username'],'isAdmin':bool(u['is_admin']),'created':u['created']} for u in users]})
+
+        # ── Set admin (admin only) ───────────────────────
+        if path == '/api/set-admin':
+            req_user_id = get_session_user(token)
+            if not req_user_id: return self.send_json(401, {'error': 'לא מחובר'})
+            with get_db() as db:
+                row = db.execute("SELECT username, is_admin FROM users WHERE id=?", (req_user_id,)).fetchone()
+                if not row or (row['username'] != ADMIN_USERNAME and not row['is_admin']):
+                    return self.send_json(403, {'error': 'אין הרשאה'})
+                target_id  = payload.get('user_id')
+                is_admin   = payload.get('is_admin', False)
+                db.execute("UPDATE users SET is_admin=? WHERE id=?", (1 if is_admin else 0, target_id))
+            return self.send_json(200, {'ok': True})
 
         # ── Delete user (admin only) ──────────────────────
         if path == '/api/delete-user':

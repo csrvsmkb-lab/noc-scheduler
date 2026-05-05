@@ -848,12 +848,23 @@ async function loadAdminUsers(){
     const d = await r.json();
     if(!d.users) return;
     document.getElementById('adminUsersList').innerHTML = d.users.map(u=>`
-      <div style="display:flex;align-items:center;justify-content:space-between;padding:8px 10px;background:var(--s3);border-radius:7px;margin-bottom:6px;border:1px solid var(--border)">
-        <div>
-          <span style="font-weight:500;font-size:13px">${u.username}</span>
-          ${u.username==='admin'?'<span style="font-size:10px;color:var(--blue);margin-right:6px;background:rgba(26,110,245,.1);padding:1px 7px;border-radius:10px">מנהל</span>':''}
+      <div style="display:flex;align-items:center;justify-content:space-between;padding:8px 12px;background:var(--s3);border-radius:7px;margin-bottom:6px;border:1px solid var(--border)">
+        <div style="display:flex;align-items:center;gap:8px">
+          <div style="width:28px;height:28px;border-radius:50%;background:var(--blue);display:flex;align-items:center;justify-content:center;color:#fff;font-size:12px;font-weight:600">${u.username[0].toUpperCase()}</div>
+          <div>
+            <div style="font-weight:500;font-size:13px">${u.username}</div>
+            <div style="font-size:10px;color:var(--muted)">${u.isAdmin?'מנהל מערכת':'מנהל משמרת'}</div>
+          </div>
         </div>
-        ${u.username!=='admin'?`<button onclick="deleteUser(${u.id},'${u.username}')" style="background:none;border:1px solid rgba(214,48,48,.3);border-radius:5px;color:var(--red);cursor:pointer;font-size:11px;padding:2px 8px;font-family:inherit">מחק</button>`:''}
+        <div style="display:flex;align-items:center;gap:6px">
+          ${u.username!=='admin'?`
+            <label style="display:flex;align-items:center;gap:4px;font-size:11px;color:var(--muted);cursor:pointer">
+              <input type="checkbox" ${u.isAdmin?'checked':''} onchange="toggleAdmin(${u.id},this.checked)" style="accent-color:var(--blue)">
+              אדמין
+            </label>
+            <button onclick="deleteUser(${u.id},'${u.username}')" style="background:none;border:1px solid rgba(214,48,48,.3);border-radius:5px;color:var(--red);cursor:pointer;font-size:11px;padding:2px 8px;font-family:inherit">מחק</button>
+          `:'<span style="font-size:10px;color:var(--blue);background:rgba(26,110,245,.1);padding:2px 8px;border-radius:10px">ראשי</span>'}
+        </div>
       </div>`).join('');
   } catch(e){ console.error(e); }
 }
@@ -869,6 +880,15 @@ async function createUser(){
     if(d.ok){ msg.style.color='var(--teal)'; msg.textContent=`✓ המשתמש "${username}" נוצר בהצלחה`; msg.style.display='block'; document.getElementById('newUsername').value=''; document.getElementById('newUserPass').value=''; await loadAdminUsers(); }
     else { msg.style.color='var(--red)'; msg.textContent=d.error||'שגיאה'; msg.style.display='block'; }
   } catch(e){ msg.style.color='var(--red)'; msg.textContent='שגיאת תקשורת'; msg.style.display='block'; }
+}
+
+async function toggleAdmin(id, makeAdmin){
+  try {
+    const r = await fetch('/api/set-admin',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({user_id:id,is_admin:makeAdmin})});
+    const d = await r.json();
+    if(d.ok) await loadAdminUsers();
+    else alert(d.error||'שגיאה');
+  } catch(e){ alert('שגיאת תקשורת'); }
 }
 
 async function deleteUser(id, username){
