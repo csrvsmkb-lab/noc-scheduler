@@ -297,7 +297,7 @@ table.sgrid td.nc{text-align:right;font-weight:500;background:var(--s2);color:va
 <!-- MODAL -->
 <div class="overlay" id="overlay">
   <div class="modal">
-    <div class="modal-title">הוסף עובד למוקד</div>
+    <div class="modal-title" id="modalTitle">הוסף עובד למוקד</div>
     <div class="frow"><label class="flabel">שם מלא</label><input class="finput" id="f_name" placeholder="ישראל ישראלי"></div>
     <div class="frow"><label class="flabel">תפקיד</label><input class="finput" id="f_role" placeholder="NOC Analyst"></div>
     <div class="frow">
@@ -532,13 +532,21 @@ function flashSaved(){
 //  WORKERS
 // ═══════════════════════════════════════════════════════
 function renderWorkers(){
+  const BCLS=['b-blue','b-teal','b-amber','b-red','b-red'];
   document.getElementById('workersList').innerHTML=workers.map(w=>`
     <div class="wcard">
-      <button class="wdel" onclick="delWorker(${w.id})">×</button>
-      <div class="wname">${w.name}</div>
-      <div class="wrole">${w.role}</div>
-      <div class="wbadges">
-        ${w.prefShifts.map(s=>`<span class="badge ${s==='בוקר'?'b-blue':s==='צהריים'?'b-teal':'b-amber'}">${s}</span>`).join('')}
+      <div style="display:flex;justify-content:space-between;align-items:flex-start">
+        <div>
+          <div class="wname">${w.name}</div>
+          <div class="wrole">${w.role}</div>
+        </div>
+        <div style="display:flex;gap:4px">
+          <button onclick="editWorker(${w.id})" style="background:none;border:1px solid var(--border2);border-radius:5px;color:var(--blue);cursor:pointer;font-size:11px;padding:2px 7px;font-family:inherit">✏️</button>
+          <button class="wdel" onclick="delWorker(${w.id})">×</button>
+        </div>
+      </div>
+      <div class="wbadges" style="margin-top:5px">
+        ${w.prefShifts.map((s,i)=>`<span class="badge ${BCLS[i%BCLS.length]}">${s}</span>`).join('')}
         ${w.blockedDays.length?`<span class="badge b-red">✗ ${w.blockedDays.join(' ')}</span>`:''}
       </div>
       ${w.notes?`<div class="wnotes">📝 ${w.notes}</div>`:''}
@@ -547,26 +555,52 @@ function renderWorkers(){
 
 function delWorker(id){ workers=workers.filter(w=>w.id!==id); renderWorkers(); saveState(); }
 
+let editingId = null;
+
 function openModal(){
+  editingId = null;
+  document.getElementById('modalTitle').textContent = 'הוסף עובד למוקד';
   document.getElementById('f_name').value='';
   document.getElementById('f_role').value='NOC Analyst';
   document.getElementById('f_notes').value='';
   document.querySelectorAll('#blockedDaysGroup input,#prefShiftsGroup input').forEach(c=>c.checked=false);
   document.getElementById('overlay').classList.add('open');
 }
-function closeModal(){ document.getElementById('overlay').classList.remove('open'); }
+
+function editWorker(id){
+  const w = workers.find(x=>x.id===id);
+  if(!w) return;
+  editingId = id;
+  document.getElementById('modalTitle').textContent = 'עריכת עובד';
+  document.getElementById('f_name').value = w.name;
+  document.getElementById('f_role').value = w.role;
+  document.getElementById('f_notes').value = w.notes||'';
+  document.querySelectorAll('#blockedDaysGroup input').forEach(c=>{ c.checked=w.blockedDays.includes(c.value); });
+  document.querySelectorAll('#prefShiftsGroup input').forEach(c=>{ c.checked=w.prefShifts.includes(c.value); });
+  document.getElementById('overlay').classList.add('open');
+}
+
+function closeModal(){ document.getElementById('overlay').classList.remove('open'); editingId=null; }
 document.getElementById('overlay').addEventListener('click',e=>{if(e.target===e.currentTarget)closeModal()});
 
 function saveWorker(){
   const name=document.getElementById('f_name').value.trim();
   if(!name){alert('נא להזין שם');return}
-  workers.push({
-    id:nextId++, name,
+  const data = {
+    name,
     role:document.getElementById('f_role').value||'NOC Analyst',
     blockedDays:[...document.querySelectorAll('#blockedDaysGroup input:checked')].map(c=>c.value),
     prefShifts:[...document.querySelectorAll('#prefShiftsGroup input:checked')].map(c=>c.value),
     notes:document.getElementById('f_notes').value,
-  });
+  };
+  if(editingId!==null){
+    // Edit existing
+    const idx = workers.findIndex(w=>w.id===editingId);
+    if(idx!==-1) workers[idx] = {...workers[idx], ...data};
+  } else {
+    // Add new
+    workers.push({id:nextId++, ...data});
+  }
   renderWorkers(); saveState(); closeModal();
 }
 
