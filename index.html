@@ -583,7 +583,7 @@ function buildSchedule(){
   document.getElementById('schedWrap').classList.remove('vis');
   document.getElementById('lastGenBanner').classList.remove('vis');
 
-  setTimeout(()=>{
+  setTimeout(async ()=>{
     try {
       const result = runAlgorithm(getConstraints());
       lastSchedule=result.schedule; lastStats=result.stats;
