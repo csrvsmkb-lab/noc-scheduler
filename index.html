@@ -465,8 +465,7 @@ function showApp(username){
   if(username) document.getElementById('userChip').textContent=username;
   renderShiftsLegend();
   updatePrefShiftsModal();
-  if(currentIsAdmin) document.getElementById('adminBtn').style.display='flex';
-}
+  const adminBtn = document.getElementById('adminBtn'); if(adminBtn) adminBtn.style.display = currentIsAdmin ? 'flex' : 'none';
 document.getElementById('loginPass').addEventListener('keydown',e=>{if(e.key==='Enter')doLogin()});
 document.getElementById('loginUser').addEventListener('keydown',e=>{if(e.key==='Enter')document.getElementById('loginPass').focus()});
 
