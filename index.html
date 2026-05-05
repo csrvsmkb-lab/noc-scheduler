@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>NOC Scheduler</title>
+<title>ShiftCraft AI</title>
 <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Hebrew:wght@300;400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
 <style>
 *{box-sizing:border-box;margin:0;padding:0}
@@ -155,23 +155,17 @@ table.sgrid td.nc{text-align:right;font-weight:500;background:var(--s2);color:va
 
 <!-- LOGIN -->
 <div id="loginScreen">
-  <div class="login-card">
-    <div class="login-logo">
-      <div class="login-logo-dot">N</div>
-      <div>
-        <div class="login-logo-name">NOC Scheduler</div>
-        <div class="login-logo-sub">מערכת משמרות</div>
+  <div style="display:flex;flex-direction:column;align-items:center;justify-content:center;min-height:100vh;gap:16px">
+    <div class="login-card">
+      <div class="login-logo">
+        <div class="login-logo-dot">S</div>
+        <div>
+          <div class="login-logo-name">ShiftCraft AI</div>
+          <div class="login-logo-sub">ניהול משמרות חכם</div>
+        </div>
       </div>
-    </div>
-
-    <!-- Tabs -->
-    <div style="display:flex;gap:0;margin-bottom:22px;border:1px solid var(--border2);border-radius:8px;overflow:hidden">
-      <button id="tabLogin" onclick="switchTab('login')" style="flex:1;padding:9px;border:none;background:var(--blue);color:#fff;font-family:inherit;font-size:13px;font-weight:500;cursor:pointer">כניסה</button>
-      <button id="tabReg" onclick="switchTab('reg')" style="flex:1;padding:9px;border:none;background:transparent;color:var(--muted);font-family:inherit;font-size:13px;cursor:pointer">הרשמה</button>
-    </div>
-
-    <!-- Login form -->
-    <div id="formLogin">
+      <div class="login-title">כניסה למערכת</div>
+      <div class="login-sub">הכנס את פרטי המשתמש להמשך</div>
       <div class="login-field">
         <label class="login-label">שם משתמש</label>
         <input class="login-input" id="loginUser" placeholder="your_name" autocomplete="username">
@@ -181,26 +175,11 @@ table.sgrid td.nc{text-align:right;font-weight:500;background:var(--s2);color:va
         <input class="login-input" id="loginPass" type="password" placeholder="••••••••" autocomplete="current-password">
       </div>
       <button class="login-btn" onclick="doLogin()">כניסה</button>
+      <div class="login-err" id="loginErr"></div>
     </div>
-
-    <!-- Register form -->
-    <div id="formReg" style="display:none">
-      <div class="login-field">
-        <label class="login-label">שם משתמש (ייחודי)</label>
-        <input class="login-input" id="regUser" placeholder="your_name" autocomplete="username">
-      </div>
-      <div class="login-field">
-        <label class="login-label">סיסמה (מינ׳ 4 תווים)</label>
-        <input class="login-input" id="regPass" type="password" placeholder="••••••••" autocomplete="new-password">
-      </div>
-      <div class="login-field">
-        <label class="login-label">אימות סיסמה</label>
-        <input class="login-input" id="regPass2" type="password" placeholder="••••••••" autocomplete="new-password">
-      </div>
-      <button class="login-btn" onclick="doRegister()">צור חשבון</button>
+    <div style="font-size:11px;color:var(--muted);text-align:center">
+      © כל הזכויות שמורות ליחיאל לוי ועוזי לוי
     </div>
-
-    <div class="login-err" id="loginErr"></div>
   </div>
 </div>
 
@@ -209,7 +188,7 @@ table.sgrid td.nc{text-align:right;font-weight:500;background:var(--s2);color:va
   <aside class="sidebar">
     <div class="logo">
       <div class="logo-dot">N</div>
-      <div><div class="logo-name">NOC Scheduler</div><div class="logo-sub">מערכת משמרות</div></div>
+      <div><div class="logo-name">ShiftCraft AI</div><div class="logo-sub">ניהול משמרות חכם</div></div>
       <div class="logo-right">
         <span class="user-chip" id="userChip"></span>
         <button class="logout-btn" onclick="doLogout()">יציאה</button>
@@ -247,10 +226,13 @@ table.sgrid td.nc{text-align:right;font-weight:500;background:var(--s2);color:va
         <div class="page-title">לוח משמרות שבועי</div>
         <div class="page-sub">הגדר עובדים ואילוצים, לאחר מכן לחץ על בניית לוח</div>
       </div>
-      <button class="gen-btn" id="genBtn" onclick="buildSchedule()">
+      <div style="display:flex;gap:8px;align-items:center">
+        <button id="adminBtn" onclick="openAdminPanel()" style="display:none;background:rgba(26,110,245,.1);border:1px solid var(--border2);color:var(--blue);border-radius:8px;padding:9px 16px;font-size:13px;cursor:pointer;font-family:inherit">👑 ניהול משתמשים</button>
+        <button class="gen-btn" id="genBtn" onclick="buildSchedule()">
         <div class="spin" id="spin"></div>
         <span id="genTxt">⚙️ בנה לוח משמרות</span>
       </button>
+      </div>
     </div>
 
     <div class="last-gen-banner" id="lastGenBanner">
@@ -278,7 +260,30 @@ table.sgrid td.nc{text-align:right;font-weight:500;background:var(--s2);color:va
         <div class="notes-body" id="notesBody"></div>
       </div>
     </div>
+  <div style="padding:20px 0 4px;font-size:11px;color:var(--dim);text-align:center">
+      © כל הזכויות שמורות ליחיאל לוי ועוזי לוי
+    </div>
   </main>
+</div>
+
+<!-- ADMIN PANEL MODAL -->
+<div class="overlay" id="adminOverlay">
+  <div class="modal" style="width:500px">
+    <div class="modal-title">👑 ניהול משתמשים</div>
+    <div id="adminUsersList" style="margin-bottom:14px"></div>
+    <div style="border-top:1px solid var(--border);padding-top:14px;margin-top:4px">
+      <div style="font-size:12px;font-weight:600;margin-bottom:10px;color:var(--text)">יצירת משתמש חדש</div>
+      <div style="display:flex;gap:8px;margin-bottom:8px">
+        <input class="finput" id="newUsername" placeholder="שם משתמש" style="flex:1">
+        <input class="finput" id="newUserPass" type="password" placeholder="סיסמה" style="flex:1">
+      </div>
+      <button class="btn-save" style="width:100%" onclick="createUser()">+ צור משתמש</button>
+      <div id="adminMsg" style="font-size:12px;margin-top:8px;color:var(--teal);display:none"></div>
+    </div>
+    <div class="mactions" style="margin-top:12px">
+      <button class="btn-cancel" onclick="closeAdminPanel()">סגור</button>
+    </div>
+  </div>
 </div>
 
 <!-- SHIFTS MODAL -->
@@ -297,9 +302,9 @@ table.sgrid td.nc{text-align:right;font-weight:500;background:var(--s2);color:va
 <!-- MODAL -->
 <div class="overlay" id="overlay">
   <div class="modal">
-    <div class="modal-title" id="modalTitle">הוסף עובד למוקד</div>
+    <div class="modal-title" id="modalTitle">הוסף עובד לצוות</div>
     <div class="frow"><label class="flabel">שם מלא</label><input class="finput" id="f_name" placeholder="ישראל ישראלי"></div>
-    <div class="frow"><label class="flabel">תפקיד</label><input class="finput" id="f_role" placeholder="NOC Analyst"></div>
+    <div class="frow"><label class="flabel">תפקיד</label><input class="finput" id="f_role" placeholder="Shift Analyst"></div>
     <div class="frow">
       <label class="flabel">ימים אסורים לעבודה</label>
       <div class="chk-group" id="blockedDaysGroup">
@@ -421,16 +426,6 @@ function updatePrefShiftsModal(){
 // ═══════════════════════════════════════════════════════
 //  AUTH
 // ═══════════════════════════════════════════════════════
-function switchTab(t){
-  document.getElementById('formLogin').style.display = t==='login'?'block':'none';
-  document.getElementById('formReg').style.display   = t==='reg'?'block':'none';
-  document.getElementById('tabLogin').style.background = t==='login'?'var(--blue)':'transparent';
-  document.getElementById('tabLogin').style.color      = t==='login'?'#fff':'var(--muted)';
-  document.getElementById('tabReg').style.background  = t==='reg'?'var(--blue)':'transparent';
-  document.getElementById('tabReg').style.color        = t==='reg'?'#fff':'var(--muted)';
-  document.getElementById('loginErr').classList.remove('vis');
-}
-
 async function doLogin(){
   const u = document.getElementById('loginUser').value.trim();
   const p = document.getElementById('loginPass').value;
@@ -470,6 +465,7 @@ function showApp(username){
   if(username) document.getElementById('userChip').textContent=username;
   renderShiftsLegend();
   updatePrefShiftsModal();
+  if(currentIsAdmin) document.getElementById('adminBtn').style.display='flex';
 }
 document.getElementById('loginPass').addEventListener('keydown',e=>{if(e.key==='Enter')doLogin()});
 document.getElementById('loginUser').addEventListener('keydown',e=>{if(e.key==='Enter')document.getElementById('loginPass').focus()});
@@ -559,9 +555,9 @@ let editingId = null;
 
 function openModal(){
   editingId = null;
-  document.getElementById('modalTitle').textContent = 'הוסף עובד למוקד';
+  document.getElementById('modalTitle').textContent = 'הוסף עובד לצוות';
   document.getElementById('f_name').value='';
-  document.getElementById('f_role').value='NOC Analyst';
+  document.getElementById('f_role').value='Shift Analyst';
   document.getElementById('f_notes').value='';
   document.querySelectorAll('#blockedDaysGroup input,#prefShiftsGroup input').forEach(c=>c.checked=false);
   document.getElementById('overlay').classList.add('open');
@@ -588,7 +584,7 @@ function saveWorker(){
   if(!name){alert('נא להזין שם');return}
   const data = {
     name,
-    role:document.getElementById('f_role').value||'NOC Analyst',
+    role:document.getElementById('f_role').value||'Shift Analyst',
     blockedDays:[...document.querySelectorAll('#blockedDaysGroup input:checked')].map(c=>c.value),
     prefShifts:[...document.querySelectorAll('#prefShiftsGroup input:checked')].map(c=>c.value),
     notes:document.getElementById('f_notes').value,
@@ -831,13 +827,72 @@ function dlBlob(blob,name){
 // ═══════════════════════════════════════════════════════
 //  BOOT
 // ═══════════════════════════════════════════════════════
+// ═══════════════════════════════════════════════════════
+//  ADMIN PANEL
+// ═══════════════════════════════════════════════════════
+let currentIsAdmin = false;
+
+async function openAdminPanel(){
+  document.getElementById('adminMsg').style.display='none';
+  document.getElementById('newUsername').value='';
+  document.getElementById('newUserPass').value='';
+  await loadAdminUsers();
+  document.getElementById('adminOverlay').classList.add('open');
+}
+function closeAdminPanel(){ document.getElementById('adminOverlay').classList.remove('open'); }
+document.getElementById('adminOverlay').addEventListener('click',e=>{if(e.target===e.currentTarget)closeAdminPanel()});
+
+async function loadAdminUsers(){
+  try {
+    const r = await fetch('/api/users');
+    const d = await r.json();
+    if(!d.users) return;
+    document.getElementById('adminUsersList').innerHTML = d.users.map(u=>`
+      <div style="display:flex;align-items:center;justify-content:space-between;padding:8px 10px;background:var(--s3);border-radius:7px;margin-bottom:6px;border:1px solid var(--border)">
+        <div>
+          <span style="font-weight:500;font-size:13px">${u.username}</span>
+          ${u.username==='admin'?'<span style="font-size:10px;color:var(--blue);margin-right:6px;background:rgba(26,110,245,.1);padding:1px 7px;border-radius:10px">מנהל</span>':''}
+        </div>
+        ${u.username!=='admin'?`<button onclick="deleteUser(${u.id},'${u.username}')" style="background:none;border:1px solid rgba(214,48,48,.3);border-radius:5px;color:var(--red);cursor:pointer;font-size:11px;padding:2px 8px;font-family:inherit">מחק</button>`:''}
+      </div>`).join('');
+  } catch(e){ console.error(e); }
+}
+
+async function createUser(){
+  const username = document.getElementById('newUsername').value.trim();
+  const password = document.getElementById('newUserPass').value;
+  const msg = document.getElementById('adminMsg');
+  if(!username||!password){ msg.style.color='var(--red)'; msg.textContent='נא למלא שם משתמש וסיסמה'; msg.style.display='block'; return; }
+  try {
+    const r = await fetch('/api/register',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({username,password})});
+    const d = await r.json();
+    if(d.ok){ msg.style.color='var(--teal)'; msg.textContent=`✓ המשתמש "${username}" נוצר בהצלחה`; msg.style.display='block'; document.getElementById('newUsername').value=''; document.getElementById('newUserPass').value=''; await loadAdminUsers(); }
+    else { msg.style.color='var(--red)'; msg.textContent=d.error||'שגיאה'; msg.style.display='block'; }
+  } catch(e){ msg.style.color='var(--red)'; msg.textContent='שגיאת תקשורת'; msg.style.display='block'; }
+}
+
+async function deleteUser(id, username){
+  if(!confirm(`למחוק את המשתמש "${username}"? הנתונים שלו יאבדו לצמיתות.`)) return;
+  try {
+    const r = await fetch('/api/delete-user',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({user_id:id})});
+    const d = await r.json();
+    if(d.ok) await loadAdminUsers();
+    else alert(d.error||'שגיאה');
+  } catch(e){ alert('שגיאת תקשורת'); }
+}
+
 renderShiftsLegend();
 updatePrefShiftsModal();
 (async()=>{
   try {
     const r = await fetch('/api/me');
     const d = await r.json();
-    if(d.authed){ showApp(d.username); await loadState(); }
+    if(d.authed){
+      currentIsAdmin = d.isAdmin;
+      showApp(d.username);
+      if(d.isAdmin) document.getElementById('adminBtn').style.display='flex';
+      await loadState();
+    }
   } catch(e){}
 })();
 </script>

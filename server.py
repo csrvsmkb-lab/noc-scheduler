@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-NOC Scheduler - Multi-user cloud server
+ShiftCraft AI - Multi-user cloud server
 Each manager has their own account and data.
 Uses SQLite — no external database needed.
 """
@@ -22,6 +22,7 @@ PORT     = int(os.environ.get('PORT', 3000))
 DB_FILE  = Path(__file__).parent / 'noc.db'
 FOLDER   = Path(__file__).parent
 SESSION_TTL = 8 * 60 * 60  # 8 hours
+ADMIN_USERNAME = os.environ.get('ADMIN_USERNAME', 'admin')  # Only this user can create accounts
 
 # ─────────────────────────────────────────────────────────
 #  DATABASE
@@ -187,8 +188,9 @@ class Handler(http.server.BaseHTTPRequestHandler):
             if user_id:
                 with get_db() as db:
                     row = db.execute("SELECT username FROM users WHERE id=?", (user_id,)).fetchone()
-                return self.send_json(200, {'authed': True, 'username': row['username'] if row else ''})
-            return self.send_json(200, {'authed': False})
+                username = row['username'] if row else ''
+                return self.send_json(200, {'authed': True, 'username': username, 'isAdmin': username == ADMIN_USERNAME})
+            return self.send_json(200, {'authed': False, 'isAdmin': False})
 
         if path == '/api/data':
             if not user_id: return self.send_json(401, {'error': 'לא מחובר'})
@@ -223,8 +225,18 @@ class Handler(http.server.BaseHTTPRequestHandler):
         except Exception:
             return self.send_json(400, {'error': 'Bad JSON'})
 
-        # ── Register ──────────────────────────────────────
+        # ── Register (admin only) ─────────────────────────
         if path == '/api/register':
+            # Check if requester is admin
+            req_user_id = get_session_user(token)
+            is_admin = False
+            if req_user_id:
+                with get_db() as db:
+                    row = db.execute("SELECT username FROM users WHERE id=?", (req_user_id,)).fetchone()
+                    is_admin = row and row['username'] == ADMIN_USERNAME
+            # Allow first user creation (no users yet) or admin
+            if not is_admin and count_users() > 0:
+                return self.send_json(403, {'error': 'רק מנהל המערכת יכול ליצור משתמשים'})
             username = payload.get('username','').strip()
             password = payload.get('password','')
             if not username or not password:
@@ -232,6 +244,9 @@ class Handler(http.server.BaseHTTPRequestHandler):
             if len(password) < 4:
                 return self.send_json(400, {'error': 'סיסמה חייבת להיות לפחות 4 תווים'})
             if create_user(username, password):
+                # If admin is creating, don't auto-login as new user
+                if is_admin:
+                    return self.send_json(200, {'ok': True, 'created': username})
                 uid = check_user(username, password)
                 t = create_session(uid)
                 self.send_response(200)
@@ -260,6 +275,34 @@ class Handler(http.server.BaseHTTPRequestHandler):
             else:
                 self.send_json(401, {'error': 'שם משתמש או סיסמה שגויים'})
             return
+
+        # ── List users (admin only) ───────────────────────
+        if path == '/api/users':
+            req_user_id = get_session_user(token)
+            if not req_user_id: return self.send_json(401, {'error': 'לא מחובר'})
+            with get_db() as db:
+                row = db.execute("SELECT username FROM users WHERE id=?", (req_user_id,)).fetchone()
+                if not row or row['username'] != ADMIN_USERNAME:
+                    return self.send_json(403, {'error': 'אין הרשאה'})
+                users = db.execute("SELECT id, username, created FROM users ORDER BY created").fetchall()
+                return self.send_json(200, {'users': [{'id':u['id'],'username':u['username'],'created':u['created']} for u in users]})
+
+        # ── Delete user (admin only) ──────────────────────
+        if path == '/api/delete-user':
+            req_user_id = get_session_user(token)
+            if not req_user_id: return self.send_json(401, {'error': 'לא מחובר'})
+            with get_db() as db:
+                row = db.execute("SELECT username FROM users WHERE id=?", (req_user_id,)).fetchone()
+                if not row or row['username'] != ADMIN_USERNAME:
+                    return self.send_json(403, {'error': 'אין הרשאה'})
+                target_id = payload.get('user_id')
+                target = db.execute("SELECT username FROM users WHERE id=?", (target_id,)).fetchone()
+                if target and target['username'] == ADMIN_USERNAME:
+                    return self.send_json(400, {'error': 'לא ניתן למחוק את מנהל המערכת'})
+                db.execute("DELETE FROM user_data WHERE user_id=?", (target_id,))
+                db.execute("DELETE FROM sessions WHERE user_id=?", (target_id,))
+                db.execute("DELETE FROM users WHERE id=?", (target_id,))
+            return self.send_json(200, {'ok': True})
 
         # ── Logout ────────────────────────────────────────
         if path == '/api/logout':
@@ -299,7 +342,7 @@ class Handler(http.server.BaseHTTPRequestHandler):
 if __name__ == '__main__':
     init_db()
     server = http.server.HTTPServer(('0.0.0.0', PORT), Handler)
-    print(f'\n  ✅  NOC Scheduler  →  http://localhost:{PORT}')
+    print(f'\n  ✅  ShiftCraft AI  →  http://localhost:{PORT}')
     print(f'  משתמשים רשומים: {count_users()}')
     print(f'  Database: {DB_FILE}')
     print(f'  לעצירה: Ctrl+C\n')
