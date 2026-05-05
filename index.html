@@ -793,6 +793,8 @@ function runAlgorithm(C){
     return n;
   }
 
+  // Multi-pass: run twice to fill gaps
+  for(let pass=0; pass<2; pass++){
   for(let di=0; di<DAYS.length; di++){
     const day  = DAYS[di];
     const isWE = WEEKEND_DAYS.has(day);
@@ -812,8 +814,7 @@ function runAlgorithm(C){
         if(isMorning && di>0 && didNight(w.name,di-1)) return null;
         if(consecutiveBefore(w.name,di) >= C.consec) return null;
         if(isNight && c.nights >= C.nights) return null;
-        if(!isWE && pass===0 && c.weekdays >= C.wkmax) return null;
-        if(!isWE && pass>=1 && c.weekdays >= C.wkmax+2) return null;
+        if(!isWE && c.weekdays >= C.wkmax) return null;
 
         // Soft score — lower = more preferred
         let score = c.total * 80;
@@ -837,11 +838,14 @@ function runAlgorithm(C){
         if(isWE) c.weekend++; else c.weekdays++;
       }
 
-      if(schedule[day][sh].length < C.cover){
+      if(schedule[day][sh].length < C.cover && pass===0){
+        // will retry on pass 1
+      } else if(schedule[day][sh].length < C.cover){
         violations.push(`${day} ${sh}: ${schedule[day][sh].length}/${C.cover} עובדים`);
       }
     }
   }
+  } // end pass
 
   // Stats
   const stats={};
