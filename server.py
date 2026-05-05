@@ -273,7 +273,12 @@ class Handler(http.server.BaseHTTPRequestHandler):
                 return self.send_json(400, {'error': 'שם משתמש וסיסמה נדרשים'})
             if len(password) < 4:
                 return self.send_json(400, {'error': 'סיסמה חייבת להיות לפחות 4 תווים'})
+            new_user_is_admin = payload.get('is_admin', False)
             if create_user(username, password):
+                # Set admin flag if requested
+                if new_user_is_admin:
+                    with get_db() as db:
+                        db.execute("UPDATE users SET is_admin=1 WHERE username=?", (username,))
                 # If admin is creating, don't auto-login as new user
                 if is_admin:
                     return self.send_json(200, {'ok': True, 'created': username})
@@ -316,6 +321,21 @@ class Handler(http.server.BaseHTTPRequestHandler):
                     return self.send_json(403, {'error': 'אין הרשאה'})
                 users = db.execute("SELECT id, username, is_admin, created FROM users ORDER BY created").fetchall()
                 return self.send_json(200, {'users': [{'id':u['id'],'username':u['username'],'isAdmin':bool(u['is_admin']),'created':u['created']} for u in users]})
+
+        # ── Change password (admin only) ─────────────────
+        if path == '/api/change-password':
+            req_user_id = get_session_user(token)
+            if not req_user_id: return self.send_json(401, {'error': 'לא מחובר'})
+            with get_db() as db:
+                row = db.execute("SELECT username, is_admin FROM users WHERE id=?", (req_user_id,)).fetchone()
+                if not row or (row['username'] != ADMIN_USERNAME and not row['is_admin']):
+                    return self.send_json(403, {'error': 'אין הרשאה'})
+                target_id = payload.get('user_id')
+                new_pass  = payload.get('new_password','')
+                if len(new_pass) < 4:
+                    return self.send_json(400, {'error': 'סיסמה קצרה מדי'})
+                db.execute("UPDATE users SET password=? WHERE id=?", (hash_password(new_pass), target_id))
+            return self.send_json(200, {'ok': True})
 
         # ── Set admin (admin only) ───────────────────────
         if path == '/api/set-admin':

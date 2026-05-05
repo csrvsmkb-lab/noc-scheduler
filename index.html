@@ -159,27 +159,22 @@ table.sgrid td.nc{text-align:right;font-weight:500;background:var(--s2);color:va
     <div class="login-card">
       <div class="login-logo">
         <div class="login-logo-dot">S</div>
-        <div>
-          <div class="login-logo-name">ShiftCraft AI</div>
-          <div class="login-logo-sub">ניהול משמרות חכם</div>
-        </div>
+        <div><div class="login-logo-name">ShiftCraft AI</div><div class="login-logo-sub">ניהול משמרות חכם</div></div>
       </div>
       <div class="login-title">כניסה למערכת</div>
-      <div class="login-sub">הכנס את פרטי המשתמש להמשך</div>
+      <div class="login-sub">הכנס את פרטי המשתמש</div>
       <div class="login-field">
         <label class="login-label">שם משתמש</label>
-        <input class="login-input" id="loginUser" placeholder="your_name" autocomplete="username">
+        <input class="login-input" id="loginUser" placeholder="username" autocomplete="username">
       </div>
       <div class="login-field">
         <label class="login-label">סיסמה</label>
         <input class="login-input" id="loginPass" type="password" placeholder="••••••••" autocomplete="current-password">
       </div>
-      <button class="login-btn" onclick="doLogin()">כניסה</button>
+      <button class="login-btn" id="loginBtn" onclick="doLogin()">כניסה</button>
       <div class="login-err" id="loginErr"></div>
     </div>
-    <div style="font-size:11px;color:var(--muted);text-align:center">
-      © כל הזכויות שמורות ליחיאל לוי ועוזי לוי
-    </div>
+    <div style="font-size:11px;color:var(--muted);text-align:center">© כל הזכויות שמורות ליחיאל לוי ועוזי לוי</div>
   </div>
 </div>
 
@@ -227,7 +222,7 @@ table.sgrid td.nc{text-align:right;font-weight:500;background:var(--s2);color:va
         <div class="page-sub">הגדר עובדים ואילוצים, לאחר מכן לחץ על בניית לוח</div>
       </div>
       <div style="display:flex;gap:8px;align-items:center">
-        <button id="adminBtn" onclick="openAdminPanel()" style="display:none;background:rgba(26,110,245,.1);border:1px solid var(--border2);color:var(--blue);border-radius:8px;padding:9px 16px;font-size:13px;cursor:pointer;font-family:inherit">👑 ניהול משתמשים</button>
+        <button id="adminBtn" onclick="openAdminPanel()" style="display:none;background:rgba(26,110,245,.1);border:1px solid var(--border2);color:var(--blue);border-radius:8px;padding:9px 16px;font-size:13px;cursor:pointer;font-family:inherit;align-items:center;gap:6px">👑 ניהול משתמשים</button>
         <button class="gen-btn" id="genBtn" onclick="buildSchedule()">
         <div class="spin" id="spin"></div>
         <span id="genTxt">⚙️ בנה לוח משמרות</span>
@@ -260,49 +255,47 @@ table.sgrid td.nc{text-align:right;font-weight:500;background:var(--s2);color:va
         <div class="notes-body" id="notesBody"></div>
       </div>
     </div>
-  <div style="padding:20px 0 4px;font-size:11px;color:var(--dim);text-align:center">
-      © כל הזכויות שמורות ליחיאל לוי ועוזי לוי
-    </div>
+  <div style="padding:16px 0 4px;font-size:11px;color:var(--dim);text-align:center">© כל הזכויות שמורות ליחיאל לוי ועוזי לוי</div>
   </main>
 </div>
 
 <!-- ADMIN PANEL MODAL -->
 <div class="overlay" id="adminOverlay">
-  <div class="modal" style="width:540px;max-height:90vh;overflow-y:auto">
-  <div class="modal-title">👑 ניהול משתמשים</div>
-  <div id="adminUsersList" style="margin-bottom:16px"></div>
-  <div id="changePwBox" style="display:none;background:var(--s3);border:1px solid var(--border2);border-radius:8px;padding:12px;margin-bottom:12px">
-    <div style="font-size:12px;font-weight:600;margin-bottom:8px" id="changePwTitle">שינוי סיסמה</div>
-    <div style="display:flex;gap:8px">
-      <input class="finput" id="changePwInput" type="password" placeholder="סיסמה חדשה" style="flex:1">
-      <button class="btn-save" onclick="confirmChangePassword()">שמור</button>
-      <button class="btn-cancel" onclick="document.getElementById('changePwBox').style.display='none'">ביטול</button>
+  <div class="modal" style="width:540px;max-height:88vh;overflow-y:auto">
+    <div class="modal-title">👑 ניהול משתמשים</div>
+    <div id="adminUsersList" style="margin-bottom:14px;max-height:300px;overflow-y:auto"></div>
+    <div id="changePwBox" style="display:none;background:var(--s3);border:1px solid var(--border2);border-radius:8px;padding:12px;margin-bottom:12px">
+      <div style="font-size:12px;font-weight:600;margin-bottom:8px" id="changePwTitle">שינוי סיסמה</div>
+      <div style="display:flex;gap:8px">
+        <input class="finput" id="changePwInput" type="password" placeholder="סיסמה חדשה" style="flex:1">
+        <button class="btn-save" onclick="confirmChangePassword()">שמור</button>
+        <button class="btn-cancel" onclick="document.getElementById('changePwBox').style.display='none'">ביטול</button>
+      </div>
+    </div>
+    <div style="border-top:1px solid var(--border);padding-top:14px">
+      <div style="font-size:12px;font-weight:600;margin-bottom:10px">+ יצירת משתמש חדש</div>
+      <div style="display:flex;gap:8px;margin-bottom:8px">
+        <input class="finput" id="newUsername" placeholder="שם משתמש" style="flex:1">
+        <input class="finput" id="newUserPass" type="password" placeholder="סיסמה" style="flex:1">
+      </div>
+      <label style="display:flex;align-items:center;gap:6px;font-size:12px;color:var(--muted);margin-bottom:10px;cursor:pointer">
+        <input type="checkbox" id="newUserIsAdmin" style="accent-color:var(--blue)"> הגדר כמנהל מערכת
+      </label>
+      <button class="btn-save" style="width:100%" onclick="createUser()">+ צור משתמש</button>
+      <div id="adminMsg" style="font-size:12px;margin-top:8px;display:none"></div>
+    </div>
+    <div class="mactions" style="margin-top:12px">
+      <button class="btn-cancel" onclick="closeAdminPanel()">סגור</button>
     </div>
   </div>
-  <div style="border-top:1px solid var(--border);padding-top:14px">
-    <div style="font-size:12px;font-weight:600;margin-bottom:10px;color:var(--text)">+ יצירת משתמש חדש</div>
-    <div style="display:flex;gap:8px;margin-bottom:8px">
-      <input class="finput" id="newUsername" placeholder="שם משתמש" style="flex:1">
-      <input class="finput" id="newUserPass" type="password" placeholder="סיסמה" style="flex:1">
-    </div>
-    <label style="display:flex;align-items:center;gap:6px;font-size:12px;color:var(--muted);margin-bottom:10px;cursor:pointer">
-      <input type="checkbox" id="newUserIsAdmin" style="accent-color:var(--blue)"> הגדר כמנהל מערכת
-    </label>
-    <button class="btn-save" style="width:100%" onclick="createUser()">+ צור משתמש</button>
-    <div id="adminMsg" style="font-size:12px;margin-top:8px;display:none"></div>
-  </div>
-  <div class="mactions" style="margin-top:12px">
-    <button class="btn-cancel" onclick="closeAdminPanel()">סגור</button>
-  </div>
-</div>
 </div>
 
 <!-- SHIFTS MODAL -->
 <div class="overlay" id="shiftsOverlay">
-  <div class="modal" style="width:480px">
+  <div class="modal" style="width:520px;max-height:88vh;overflow-y:auto">
     <div class="modal-title">עריכת סוגי משמרות</div>
     <div id="shiftsModalList"></div>
-    <button onclick="addShiftRow()" style="width:100%;margin-top:10px;padding:7px;border-radius:7px;background:transparent;border:1px dashed var(--border2);color:var(--blue);font-size:13px;cursor:pointer;font-family:inherit">+ הוסף משמרת</button>
+    <button onclick="addShiftRow()" style="width:100%;margin-top:8px;padding:7px;border-radius:7px;background:transparent;border:1px dashed var(--border2);color:var(--blue);font-size:13px;cursor:pointer;font-family:inherit">+ הוסף משמרת</button>
     <div class="mactions">
       <button class="btn-cancel" onclick="closeShiftsModal()">ביטול</button>
       <button class="btn-save" onclick="saveShifts()">שמור</button>
@@ -313,7 +306,7 @@ table.sgrid td.nc{text-align:right;font-weight:500;background:var(--s2);color:va
 <!-- MODAL -->
 <div class="overlay" id="overlay">
   <div class="modal">
-    <div class="modal-title" id="modalTitle">הוסף עובד לצוות</div>
+    <div class="modal-title">הוסף עובד לצוות</div>
     <div class="frow"><label class="flabel">שם מלא</label><input class="finput" id="f_name" placeholder="ישראל ישראלי"></div>
     <div class="frow"><label class="flabel">תפקיד</label><input class="finput" id="f_role" placeholder="Shift Analyst"></div>
     <div class="frow">
@@ -350,16 +343,16 @@ const SHIFT_COLORS = ['B','C','L','D','E'];
 
 // Dynamic shifts — editable
 let shifts = [
-  {name:'בוקר',   start:'07:00', end:'15:00', color:'B'},
-  {name:'צהריים', start:'15:00', end:'23:00', color:'C'},
-  {name:'לילה',   start:'23:00', end:'07:00', color:'L'},
+  {name:'בוקר',   start:'07:00', end:'15:00', color:'B', days:['ראשון','שני','שלישי','רביעי','חמישי','שישי','שבת']},
+  {name:'צהריים', start:'15:00', end:'23:00', color:'C', days:['ראשון','שני','שלישי','רביעי','חמישי','שישי','שבת']},
+  {name:'לילה',   start:'23:00', end:'07:00', color:'L', days:['ראשון','שני','שלישי','רביעי','חמישי','שישי','שבת']},
 ];
 
 function getShiftNames(){ return shifts.map(s=>s.name); }
 function getShiftCode(name){ const s=shifts.find(x=>x.name===name); return s?s.color:'B'; }
 function getShiftLabel(name){ return name.slice(0,4); }
 
-// Auth — server-based, no local config needed
+let currentIsAdmin = false;
 
 // ═══════════════════════════════════════════════════════
 //  STATE
@@ -376,11 +369,19 @@ let lastStats    = null;
 const BADGE_CLASS = ['b-blue','b-teal','b-amber','b-red','b-red'];
 
 function renderShiftsLegend(){
-  document.getElementById('shiftsLegend').innerHTML = shifts.map((s,i)=>`
-    <div class="leg-row">
-      <span class="badge ${BADGE_CLASS[i%BADGE_CLASS.length]}">${s.name}</span>
-      <span class="leg-time">${s.start}–${s.end}</span>
-    </div>`).join('');
+  document.getElementById('shiftsLegend').innerHTML = shifts.map((s,i)=>{
+    const allDays=['ראשון','שני','שלישי','רביעי','חמישי','שישי','שבת'];
+    const sDays=s.days||allDays;
+    const shortDay={'ראשון':'א','שני':'ב','שלישי':'ג','רביעי':'ד','חמישי':'ה','שישי':'ו','שבת':'ש'};
+    const daysStr=sDays.length===7?'כל הימים':sDays.map(d=>shortDay[d]).join(' ');
+    return `<div class="leg-row" style="flex-direction:column;align-items:flex-start;margin-bottom:6px">
+      <div style="display:flex;align-items:center;justify-content:space-between;width:100%">
+        <span class="badge ${BADGE_CLASS[i%BADGE_CLASS.length]}">${s.name}</span>
+        <span class="leg-time">${s.start}–${s.end}</span>
+      </div>
+      <div style="font-size:10px;color:var(--muted);margin-top:2px">${daysStr}</div>
+    </div>`;
+  }).join('');
 }
 
 function openShiftsModal(){
@@ -393,14 +394,26 @@ function closeShiftsModal(){
 document.getElementById('shiftsOverlay').addEventListener('click',e=>{if(e.target===e.currentTarget)closeShiftsModal()});
 
 function renderShiftsModalList(){
-  document.getElementById('shiftsModalList').innerHTML = shifts.map((s,i)=>`
-    <div style="display:flex;align-items:center;gap:8px;margin-bottom:10px;padding:10px;background:var(--s3);border-radius:8px;border:1px solid var(--border)">
-      <input class="finput" style="flex:2" value="${s.name}" id="sname_${i}" placeholder="שם משמרת">
-      <input class="finput" style="flex:1;font-family:monospace" type="time" value="${s.start}" id="sstart_${i}">
-      <span style="color:var(--muted);font-size:12px">עד</span>
-      <input class="finput" style="flex:1;font-family:monospace" type="time" value="${s.end}" id="send_${i}">
-      ${shifts.length>1?`<button onclick="removeShiftRow(${i})" style="background:none;border:none;color:var(--dim);cursor:pointer;font-size:18px;line-height:1;padding:2px 4px;border-radius:4px" onmouseover="this.style.color='var(--red)'" onmouseout="this.style.color='var(--dim)'">×</button>`:'<div style="width:24px"></div>'}
-    </div>`).join('');
+  const allDays=['ראשון','שני','שלישי','רביעי','חמישי','שישי','שבת'];
+  document.getElementById('shiftsModalList').innerHTML = shifts.map((s,i)=>{
+    const sDays = s.days||allDays;
+    return `<div style="margin-bottom:12px;padding:12px;background:var(--s3);border-radius:8px;border:1px solid var(--border)">
+      <div style="display:flex;align-items:center;gap:8px;margin-bottom:10px">
+        <input class="finput" style="flex:2" value="${s.name}" id="sname_${i}" placeholder="שם משמרת">
+        <input class="finput" style="flex:1;font-family:monospace" type="time" value="${s.start}" id="sstart_${i}">
+        <span style="color:var(--muted);font-size:12px">עד</span>
+        <input class="finput" style="flex:1;font-family:monospace" type="time" value="${s.end}" id="send_${i}">
+        ${shifts.length>1?`<button onclick="removeShiftRow(${i})" style="background:none;border:none;color:var(--dim);cursor:pointer;font-size:18px;line-height:1;padding:2px 4px;border-radius:4px" onmouseover="this.style.color='var(--red)'" onmouseout="this.style.color='var(--dim)'">×</button>`:'<div style="width:24px"></div>'}
+      </div>
+      <div style="font-size:11px;color:var(--muted);margin-bottom:5px">ימי פעילות:</div>
+      <div style="display:flex;flex-wrap:wrap;gap:5px">
+        ${allDays.map(d=>`
+          <label style="display:flex;align-items:center;gap:3px;font-size:11px;cursor:pointer;padding:3px 8px;border:1px solid var(--border);border-radius:5px;background:${sDays.includes(d)?'rgba(26,110,245,.1)':'transparent'};color:${sDays.includes(d)?'var(--blue)':'var(--muted)'}">
+            <input type="checkbox" class="sday_${i}" value="${d}" ${sDays.includes(d)?'checked':''} style="accent-color:var(--blue)"> ${d}
+          </label>`).join('')}
+      </div>
+    </div>`;
+  }).join('');
 }
 
 function addShiftRow(){
@@ -417,11 +430,13 @@ function removeShiftRow(i){
 
 function saveShifts(){
   const colors=['B','C','L','D','E'];
+  const allDays=['ראשון','שני','שלישי','רביעי','חמישי','שישי','שבת'];
   shifts = shifts.map((s,i)=>({
     name:  document.getElementById('sname_'+i).value.trim() || s.name,
     start: document.getElementById('sstart_'+i).value,
     end:   document.getElementById('send_'+i).value,
     color: colors[i % colors.length],
+    days:  [...document.querySelectorAll(`.sday_${i}:checked`)].map(c=>c.value),
   }));
   renderShiftsLegend();
   updatePrefShiftsModal();
@@ -441,34 +456,33 @@ async function doLogin(){
   const u = document.getElementById('loginUser').value.trim();
   const p = document.getElementById('loginPass').value;
   const err = document.getElementById('loginErr');
+  const btn = document.getElementById('loginBtn');
   if(!u||!p){err.textContent='נא למלא שם משתמש וסיסמה';err.classList.add('vis');return}
+  btn.disabled=true; btn.textContent='מתחבר...';
   try {
     const r = await fetch('/api/login',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({username:u,password:p})});
     const d = await r.json();
-    if(d.ok){ err.classList.remove('vis'); showApp(); await loadState(); }
-    else { err.textContent=d.error||'שגיאה'; err.classList.add('vis'); }
+    if(d.ok){
+      const me = await fetch('/api/me');
+      const md = await me.json();
+      currentIsAdmin = md.isAdmin||false;
+      err.classList.remove('vis');
+      showApp(md.username);
+      await loadState();
+    } else {
+      err.textContent=d.error||'שם משתמש או סיסמה שגויים';
+      err.classList.add('vis');
+    }
   } catch(e){ err.textContent='שגיאת תקשורת'; err.classList.add('vis'); }
-}
-
-async function doRegister(){
-  const u  = document.getElementById('regUser').value.trim();
-  const p  = document.getElementById('regPass').value;
-  const p2 = document.getElementById('regPass2').value;
-  const err = document.getElementById('loginErr');
-  if(!u||!p){err.textContent='נא למלא את כל השדות';err.classList.add('vis');return}
-  if(p!==p2){err.textContent='הסיסמאות אינן תואמות';err.classList.add('vis');return}
-  if(p.length<4){err.textContent='סיסמה חייבת להיות לפחות 4 תווים';err.classList.add('vis');return}
-  try {
-    const r = await fetch('/api/register',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({username:u,password:p})});
-    const d = await r.json();
-    if(d.ok){ err.classList.remove('vis'); showApp(); await loadState(); }
-    else { err.textContent=d.error||'שגיאה'; err.classList.add('vis'); }
-  } catch(e){ err.textContent='שגיאת תקשורת'; err.classList.add('vis'); }
+  btn.disabled=false; btn.textContent='כניסה';
 }
 async function doLogout(){
   await fetch('/api/logout',{method:'POST'});
+  currentIsAdmin=false;
   document.getElementById('appScreen').classList.remove('vis');
   document.getElementById('loginScreen').style.display='flex';
+  document.getElementById('loginPass').value='';
+  document.getElementById('adminBtn').style.display='none';
 }
 function showApp(username){
   document.getElementById('loginScreen').style.display='none';
@@ -476,7 +490,8 @@ function showApp(username){
   if(username) document.getElementById('userChip').textContent=username;
   renderShiftsLegend();
   updatePrefShiftsModal();
-  const adminBtn = document.getElementById('adminBtn'); if(adminBtn) adminBtn.style.display = currentIsAdmin ? 'flex' : 'none';
+  document.getElementById('adminBtn').style.display = currentIsAdmin?'flex':'none';
+}
 document.getElementById('loginPass').addEventListener('keydown',e=>{if(e.key==='Enter')doLogin()});
 document.getElementById('loginUser').addEventListener('keydown',e=>{if(e.key==='Enter')document.getElementById('loginPass').focus()});
 
@@ -484,9 +499,9 @@ document.getElementById('loginUser').addEventListener('keydown',e=>{if(e.key==='
 //  PERSISTENCE (localStorage)
 // ═══════════════════════════════════════════════════════
 async function saveState(){
-  const state = { workers, nextId, shifts, constraints: getConstraints() };
   try {
-    await fetch('/api/data',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(state)});
+    await fetch('/api/data',{method:'POST',headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({workers,nextId,shifts,constraints:getConstraints()})});
     flashSaved();
   } catch(e){ console.error('save error',e); }
 }
@@ -496,15 +511,15 @@ async function loadState(){
     const r = await fetch('/api/data');
     if(r.status===401){ location.reload(); return; }
     const s = await r.json();
-    workers = s.workers || [];
-    nextId  = s.nextId  || (Math.max(0,...(workers.map(w=>w.id).concat([0])))+1);
-    const C = s.constraints||{};
+    workers = s.workers||[];
+    nextId  = s.nextId||(Math.max(0,...workers.map(w=>w.id).concat([0]))+1);
+    const C=s.constraints||{};
     if(C.wkmax)  document.getElementById('c_wkmax').value=C.wkmax;
     if(C.consec) document.getElementById('c_consec').value=C.consec;
     if(C.rest)   document.getElementById('c_rest').value=C.rest;
     if(C.nights) document.getElementById('c_nights').value=C.nights;
     if(C.cover)  document.getElementById('c_cover').value=C.cover;
-    if(s.shifts && s.shifts.length) shifts = s.shifts;
+    if(s.shifts&&s.shifts.length) shifts=s.shifts;
     renderShiftsLegend();
     updatePrefShiftsModal();
     renderWorkers();
@@ -517,7 +532,6 @@ async function loadState(){
     }
   } catch(e){ console.error('load error',e); }
 }
-
 function getConstraints(){
   return {
     wkmax:  +document.getElementById('c_wkmax').value,
@@ -538,21 +552,13 @@ function flashSaved(){
 //  WORKERS
 // ═══════════════════════════════════════════════════════
 function renderWorkers(){
-  const BCLS=['b-blue','b-teal','b-amber','b-red','b-red'];
   document.getElementById('workersList').innerHTML=workers.map(w=>`
     <div class="wcard">
-      <div style="display:flex;justify-content:space-between;align-items:flex-start">
-        <div>
-          <div class="wname">${w.name}</div>
-          <div class="wrole">${w.role}</div>
-        </div>
-        <div style="display:flex;gap:4px">
-          <button onclick="editWorker(${w.id})" style="background:none;border:1px solid var(--border2);border-radius:5px;color:var(--blue);cursor:pointer;font-size:11px;padding:2px 7px;font-family:inherit">✏️</button>
-          <button class="wdel" onclick="delWorker(${w.id})">×</button>
-        </div>
-      </div>
-      <div class="wbadges" style="margin-top:5px">
-        ${w.prefShifts.map((s,i)=>`<span class="badge ${BCLS[i%BCLS.length]}">${s}</span>`).join('')}
+      <button class="wdel" onclick="delWorker(${w.id})">×</button>
+      <div class="wname">${w.name}</div>
+      <div class="wrole">${w.role}</div>
+      <div class="wbadges">
+        ${w.prefShifts.map(s=>`<span class="badge ${s==='בוקר'?'b-blue':s==='צהריים'?'b-teal':'b-amber'}">${s}</span>`).join('')}
         ${w.blockedDays.length?`<span class="badge b-red">✗ ${w.blockedDays.join(' ')}</span>`:''}
       </div>
       ${w.notes?`<div class="wnotes">📝 ${w.notes}</div>`:''}
@@ -561,52 +567,26 @@ function renderWorkers(){
 
 function delWorker(id){ workers=workers.filter(w=>w.id!==id); renderWorkers(); saveState(); }
 
-let editingId = null;
-
 function openModal(){
-  editingId = null;
-  document.getElementById('modalTitle').textContent = 'הוסף עובד לצוות';
   document.getElementById('f_name').value='';
   document.getElementById('f_role').value='Shift Analyst';
   document.getElementById('f_notes').value='';
   document.querySelectorAll('#blockedDaysGroup input,#prefShiftsGroup input').forEach(c=>c.checked=false);
   document.getElementById('overlay').classList.add('open');
 }
-
-function editWorker(id){
-  const w = workers.find(x=>x.id===id);
-  if(!w) return;
-  editingId = id;
-  document.getElementById('modalTitle').textContent = 'עריכת עובד';
-  document.getElementById('f_name').value = w.name;
-  document.getElementById('f_role').value = w.role;
-  document.getElementById('f_notes').value = w.notes||'';
-  document.querySelectorAll('#blockedDaysGroup input').forEach(c=>{ c.checked=w.blockedDays.includes(c.value); });
-  document.querySelectorAll('#prefShiftsGroup input').forEach(c=>{ c.checked=w.prefShifts.includes(c.value); });
-  document.getElementById('overlay').classList.add('open');
-}
-
-function closeModal(){ document.getElementById('overlay').classList.remove('open'); editingId=null; }
+function closeModal(){ document.getElementById('overlay').classList.remove('open'); }
 document.getElementById('overlay').addEventListener('click',e=>{if(e.target===e.currentTarget)closeModal()});
 
 function saveWorker(){
   const name=document.getElementById('f_name').value.trim();
   if(!name){alert('נא להזין שם');return}
-  const data = {
-    name,
+  workers.push({
+    id:nextId++, name,
     role:document.getElementById('f_role').value||'Shift Analyst',
     blockedDays:[...document.querySelectorAll('#blockedDaysGroup input:checked')].map(c=>c.value),
     prefShifts:[...document.querySelectorAll('#prefShiftsGroup input:checked')].map(c=>c.value),
     notes:document.getElementById('f_notes').value,
-  };
-  if(editingId!==null){
-    // Edit existing
-    const idx = workers.findIndex(w=>w.id===editingId);
-    if(idx!==-1) workers[idx] = {...workers[idx], ...data};
-  } else {
-    // Add new
-    workers.push({id:nextId++, ...data});
-  }
+  });
   renderWorkers(); saveState(); closeModal();
 }
 
@@ -627,7 +607,6 @@ function buildSchedule(){
     try {
       const result = runAlgorithm(getConstraints());
       lastSchedule=result.schedule; lastStats=result.stats;
-      // save schedule to server
       await fetch('/api/save-schedule',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({schedule:result.schedule,stats:result.stats})});
       renderSchedule(result,false);
       const now=new Date().toLocaleString('he-IL');
@@ -642,19 +621,20 @@ function buildSchedule(){
 }
 
 function runAlgorithm(C){
-  const shiftNames = getShiftNames();
+  // Init
   const schedule = {};
-  for(const d of DAYS){ schedule[d]={}; for(const sh of shiftNames) schedule[d][sh]=[]; }
+  for(const d of DAYS){ schedule[d]={}; for(const sh of getShiftNames()) schedule[d][sh]=[]; }
 
-  // Per-worker tracking
+  // Per-worker state
   const st = {};
   for(const w of workers){
-    st[w.name]={ total:0, nights:0, weekdays:0, weekend:0, byDay:Array(7).fill(null) };
+    st[w.name]={ total:0, nights:0, weekdays:0, weekend:0,
+                 byDay: Array(7).fill(null) }; // dayIdx -> shift name or null
   }
 
   const violations = [];
-  const nightShift = shiftNames[shiftNames.length-1];
-  const morningShift = shiftNames[0];
+
+  function didNight(name, di){ return st[name].byDay[di]==='לילה'; }
 
   function consecutiveBefore(name, di){
     let n=0;
@@ -662,63 +642,54 @@ function runAlgorithm(C){
     return n;
   }
 
-  // Try multiple passes to maximize coverage
-  for(let pass=0; pass<3; pass++){
-    for(let di=0; di<DAYS.length; di++){
-      const day  = DAYS[di];
-      const isWE = WEEKEND_DAYS.has(day);
+  for(let di=0; di<DAYS.length; di++){
+    const day  = DAYS[di];
+    const isWE = WEEKEND_DAYS.has(day);
 
-      for(const sh of shiftNames){
-        const isNight   = sh===nightShift;
-        const isMorning = sh===morningShift;
-        const current   = schedule[day][sh].length;
-        if(current >= C.cover) continue; // already filled
+    for(const sh of getShiftNames()){
+      const isNight   = getShiftNames().indexOf(sh)===getShiftNames().length-1;
+      const isMorning = getShiftNames().indexOf(sh)===0;
 
-        const needed = C.cover - current;
+      const candidates = workers.map(w=>{
+        const c = st[w.name];
 
-        const candidates = workers.map(w=>{
-          const c = st[w.name];
-          if(w.blockedDays.includes(day)) return null;
-          if(c.byDay[di]!==null) return null;
-          if(isMorning && di>0 && st[w.name].byDay[di-1]===nightShift) return null;
-          if(consecutiveBefore(w.name,di) >= C.consec) return null;
-          if(isNight && c.nights >= C.nights) return null;
-          // relaxed weekday limit on pass 2+
-          if(!isWE && pass===0 && c.weekdays >= C.wkmax) return null;
-          if(!isWE && pass>=1 && c.weekdays >= C.wkmax+1) return null;
+        // Hard constraints
+        if(w.blockedDays.includes(day)) return null;           // blocked day
+        if(c.byDay[di]!==null) return null;                    // already working today
+        if(isMorning && di>0 && didNight(w.name,di-1)) return null; // rest after night
+        if(consecutiveBefore(w.name,di) >= C.consec) return null;   // consecutive limit
+        if(isNight && c.nights >= C.nights) return null;       // nights limit
+        if(!isWE && c.weekdays >= C.wkmax) return null;        // weekday limit (Sun-Thu only)
 
-          let score = c.total * 50;
-          if(w.prefShifts.length && !w.prefShifts.includes(sh)) score += 20;
-          if(isNight) score += c.nights * 15;
-          if(isWE)    score += c.weekend * 10;
-          score += Math.random() * 3;
-          return {w, score};
-        }).filter(Boolean);
+        // Soft score — lower = more preferred
+        let score = c.total * 100;
+        if(w.prefShifts.length && !w.prefShifts.includes(sh)) score += 30;
+        if(isNight) score += c.nights * 20;
+        if(isWE)    score += c.weekend * 15;
+        score += Math.random() * 5; // tiebreak
 
-        candidates.sort((a,b)=>a.score-b.score);
-        const toAssign = candidates.slice(0, needed);
+        return {w, score};
+      }).filter(Boolean);
 
-        for(const {w} of toAssign){
-          schedule[day][sh].push(w.name);
-          const c = st[w.name];
-          c.total++;
-          c.byDay[di] = sh;
-          if(isNight) c.nights++;
-          if(isWE) c.weekend++; else c.weekdays++;
-        }
+      candidates.sort((a,b)=>a.score-b.score);
+      const toAssign = candidates.slice(0, C.cover);
+
+      for(const {w} of toAssign){
+        schedule[day][sh].push(w.name);
+        const c = st[w.name];
+        c.total++;
+        c.byDay[di] = sh;
+        if(isNight) c.nights++;
+        if(isWE) c.weekend++; else c.weekdays++;
+      }
+
+      if(schedule[day][sh].length < C.cover){
+        violations.push(`${day} ${sh}: ${schedule[day][sh].length}/${C.cover} עובדים`);
       }
     }
   }
 
-  // Report violations
-  for(const d of DAYS){
-    for(const sh of shiftNames){
-      if(schedule[d][sh].length < C.cover){
-        violations.push(`${d} ${sh}: ${schedule[d][sh].length}/${C.cover} עובדים`);
-      }
-    }
-  }
-
+  // Stats
   const stats={};
   for(const w of workers){
     const c=st[w.name];
@@ -730,7 +701,7 @@ function runAlgorithm(C){
   const notes=
     `הלוח נבנה עבור ${workers.length} עובדים — סה״כ ${totalShifts} משמרות.\n`+
     (ok?'✓ כל האילוצים מולאו בהצלחה.':
-        `⚠️ ${violations.length} משמרות לא מולאו במלואן.\n💡 טיפ: הפחת את מינ׳ הכיסוי, הגדל את מקס׳ משמרות א-ה, או הוסף עובדים.`);
+        `⚠️ ${violations.length} משמרות לא מולאו במלואן.\n💡 טיפ: הפחת את מינ׳ הכיסוי או הוסף עובדים.`);
 
   return {schedule, stats, violations, notes};
 }
@@ -837,15 +808,18 @@ function dlBlob(blob,name){
 // ═══════════════════════════════════════════════════════
 //  BOOT
 // ═══════════════════════════════════════════════════════
-// ═══════════════════════════════════════════════════════
+
+// ═══════════════════════════════════
 //  ADMIN PANEL
-// ═══════════════════════════════════════════════════════
-let currentIsAdmin = false;
+// ═══════════════════════════════════
+let changePwUserId = null;
 
 async function openAdminPanel(){
   document.getElementById('adminMsg').style.display='none';
+  document.getElementById('changePwBox').style.display='none';
   document.getElementById('newUsername').value='';
   document.getElementById('newUserPass').value='';
+  document.getElementById('newUserIsAdmin').checked=false;
   await loadAdminUsers();
   document.getElementById('adminOverlay').classList.add('open');
 }
@@ -857,58 +831,83 @@ async function loadAdminUsers(){
     const r = await fetch('/api/users');
     const d = await r.json();
     if(!d.users) return;
-    document.getElementById('adminUsersList').innerHTML = d.users.map(u=>`
-      <div style="display:flex;align-items:center;justify-content:space-between;padding:8px 12px;background:var(--s3);border-radius:7px;margin-bottom:6px;border:1px solid var(--border)">
-        <div style="display:flex;align-items:center;gap:8px">
-          <div style="width:28px;height:28px;border-radius:50%;background:var(--blue);display:flex;align-items:center;justify-content:center;color:#fff;font-size:12px;font-weight:600">${u.username[0].toUpperCase()}</div>
+    const el = document.getElementById('adminUsersList');
+    if(!d.users.length){ el.innerHTML='<div style="text-align:center;color:var(--muted);padding:12px;font-size:13px">אין משתמשים נוספים</div>'; return; }
+    el.innerHTML = d.users.map(u=>`
+      <div style="display:flex;align-items:center;justify-content:space-between;padding:9px 12px;background:var(--s3);border-radius:7px;margin-bottom:6px;border:1px solid var(--border)">
+        <div style="display:flex;align-items:center;gap:9px">
+          <div style="width:30px;height:30px;border-radius:50%;background:${u.isAdmin?'var(--blue)':'var(--muted)'};display:flex;align-items:center;justify-content:center;color:#fff;font-size:12px;font-weight:700;flex-shrink:0">${u.username[0].toUpperCase()}</div>
           <div>
             <div style="font-weight:500;font-size:13px">${u.username}</div>
-            <div style="font-size:10px;color:var(--muted)">${u.isAdmin?'מנהל מערכת':'מנהל משמרת'}</div>
+            <div style="font-size:10px;color:${u.isAdmin?'var(--blue)':'var(--muted)'}">${u.isAdmin?'👑 מנהל מערכת':'מנהל משמרת'}</div>
           </div>
         </div>
-        <div style="display:flex;align-items:center;gap:6px">
+        <div style="display:flex;gap:5px;align-items:center;flex-wrap:wrap">
           ${u.username!=='admin'?`
-            <label style="display:flex;align-items:center;gap:4px;font-size:11px;color:var(--muted);cursor:pointer">
-              <input type="checkbox" ${u.isAdmin?'checked':''} onchange="toggleAdmin(${u.id},this.checked)" style="accent-color:var(--blue)">
-              אדמין
+            <label style="display:flex;align-items:center;gap:3px;font-size:11px;color:var(--muted);cursor:pointer;padding:3px 7px;border:1px solid var(--border);border-radius:5px">
+              <input type="checkbox" ${u.isAdmin?'checked':''} onchange="toggleAdmin(${u.id},this.checked)" style="accent-color:var(--blue)"> אדמין
             </label>
-            <button onclick="deleteUser(${u.id},'${u.username}')" style="background:none;border:1px solid rgba(214,48,48,.3);border-radius:5px;color:var(--red);cursor:pointer;font-size:11px;padding:2px 8px;font-family:inherit">מחק</button>
-          `:'<span style="font-size:10px;color:var(--blue);background:rgba(26,110,245,.1);padding:2px 8px;border-radius:10px">ראשי</span>'}
+            <button onclick="showChangePw(${u.id},'${u.username}')" style="background:none;border:1px solid var(--border2);border-radius:5px;color:var(--blue);cursor:pointer;font-size:11px;padding:3px 8px;font-family:inherit">🔑</button>
+            <button onclick="deleteUser(${u.id},'${u.username}')" style="background:none;border:1px solid rgba(214,48,48,.3);border-radius:5px;color:var(--red);cursor:pointer;font-size:11px;padding:3px 8px;font-family:inherit">🗑️</button>
+          `:'<span style="font-size:10px;background:rgba(26,110,245,.1);color:var(--blue);padding:2px 9px;border-radius:10px;border:1px solid rgba(26,110,245,.2)">ראשי</span>'}
         </div>
       </div>`).join('');
   } catch(e){ console.error(e); }
 }
 
+function showChangePw(id,username){
+  changePwUserId=id;
+  document.getElementById('changePwTitle').textContent=`סיסמה חדשה — ${username}`;
+  document.getElementById('changePwInput').value='';
+  document.getElementById('changePwBox').style.display='block';
+  document.getElementById('changePwInput').focus();
+}
+
+async function confirmChangePassword(){
+  const p=document.getElementById('changePwInput').value;
+  if(!p||p.length<4){ alert('לפחות 4 תווים'); return; }
+  const r=await fetch('/api/change-password',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({user_id:changePwUserId,new_password:p})});
+  const d=await r.json();
+  if(d.ok){ document.getElementById('changePwBox').style.display='none'; showAdminMsg('✓ סיסמה עודכנה','var(--teal)'); }
+  else alert(d.error||'שגיאה');
+}
+
+async function toggleAdmin(id,makeAdmin){
+  const r=await fetch('/api/set-admin',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({user_id:id,is_admin:makeAdmin})});
+  const d=await r.json();
+  if(d.ok){ await loadAdminUsers(); showAdminMsg(makeAdmin?'✓ הרשאות אדמין הוספו':'✓ הרשאות הוסרו','var(--teal)'); }
+  else alert(d.error||'שגיאה');
+}
+
 async function createUser(){
-  const username = document.getElementById('newUsername').value.trim();
-  const password = document.getElementById('newUserPass').value;
-  const msg = document.getElementById('adminMsg');
-  if(!username||!password){ msg.style.color='var(--red)'; msg.textContent='נא למלא שם משתמש וסיסמה'; msg.style.display='block'; return; }
-  try {
-    const r = await fetch('/api/register',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({username,password})});
-    const d = await r.json();
-    if(d.ok){ msg.style.color='var(--teal)'; msg.textContent=`✓ המשתמש "${username}" נוצר בהצלחה`; msg.style.display='block'; document.getElementById('newUsername').value=''; document.getElementById('newUserPass').value=''; await loadAdminUsers(); }
-    else { msg.style.color='var(--red)'; msg.textContent=d.error||'שגיאה'; msg.style.display='block'; }
-  } catch(e){ msg.style.color='var(--red)'; msg.textContent='שגיאת תקשורת'; msg.style.display='block'; }
+  const username=document.getElementById('newUsername').value.trim();
+  const password=document.getElementById('newUserPass').value;
+  const isAdmin=document.getElementById('newUserIsAdmin').checked;
+  if(!username||!password){ showAdminMsg('נא למלא שם וסיסמה','var(--red)'); return; }
+  if(password.length<4){ showAdminMsg('סיסמה חייבת 4+ תווים','var(--red)'); return; }
+  const r=await fetch('/api/register',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({username,password,is_admin:isAdmin})});
+  const d=await r.json();
+  if(d.ok){
+    showAdminMsg(`✓ "${username}" נוצר`,'var(--teal)');
+    document.getElementById('newUsername').value='';
+    document.getElementById('newUserPass').value='';
+    document.getElementById('newUserIsAdmin').checked=false;
+    await loadAdminUsers();
+  } else showAdminMsg(d.error||'שגיאה','var(--red)');
 }
 
-async function toggleAdmin(id, makeAdmin){
-  try {
-    const r = await fetch('/api/set-admin',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({user_id:id,is_admin:makeAdmin})});
-    const d = await r.json();
-    if(d.ok) await loadAdminUsers();
-    else alert(d.error||'שגיאה');
-  } catch(e){ alert('שגיאת תקשורת'); }
+async function deleteUser(id,username){
+  if(!confirm(`למחוק את "${username}"? הנתונים יאבדו.`)) return;
+  const r=await fetch('/api/delete-user',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({user_id:id})});
+  const d=await r.json();
+  if(d.ok){ await loadAdminUsers(); showAdminMsg(`✓ "${username}" נמחק`,'var(--teal)'); }
+  else alert(d.error||'שגיאה');
 }
 
-async function deleteUser(id, username){
-  if(!confirm(`למחוק את המשתמש "${username}"? הנתונים שלו יאבדו לצמיתות.`)) return;
-  try {
-    const r = await fetch('/api/delete-user',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({user_id:id})});
-    const d = await r.json();
-    if(d.ok) await loadAdminUsers();
-    else alert(d.error||'שגיאה');
-  } catch(e){ alert('שגיאת תקשורת'); }
+function showAdminMsg(text,color){
+  const el=document.getElementById('adminMsg');
+  el.textContent=text; el.style.color=color; el.style.display='block';
+  setTimeout(()=>el.style.display='none',3000);
 }
 
 renderShiftsLegend();
@@ -918,9 +917,10 @@ updatePrefShiftsModal();
     const r = await fetch('/api/me');
     const d = await r.json();
     if(d.authed){
-      currentIsAdmin = d.isAdmin;
+      currentIsAdmin = d.isAdmin||false;
       showApp(d.username);
-
+      await loadState();
+    }
   } catch(e){}
 })();
 </script>
