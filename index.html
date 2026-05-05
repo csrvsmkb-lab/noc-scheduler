@@ -256,6 +256,14 @@ table.sgrid td.nc{text-align:right;font-weight:500;background:var(--s2);color:va
         <div class="v-title">⚠️ התראות</div>
         <div id="violList"></div>
       </div>
+      <div style="display:flex;gap:12px;flex-wrap:wrap;margin-top:10px;font-size:11px;color:var(--muted)">
+        <span>🎂 יום הולדת</span>
+        <span>🏃 מחוץ למשרד</span>
+        <span>📚 הדרכה/חפיפה</span>
+        <span>🏖️ חופש</span>
+        <span>🤒 מחלה</span>
+        <span>✗ יום חסום</span>
+      </div>
       <div class="notes-box" id="notesBox">
         <div class="notes-title">📋 סיכום בנייה</div>
         <div class="notes-body" id="notesBody"></div>
@@ -332,6 +340,34 @@ table.sgrid td.nc{text-align:right;font-weight:500;background:var(--s2);color:va
       <div class="chk-group" id="prefShiftsGroup"></div>
     </div>
     <div class="frow"><label class="flabel">הגבלות אישיות (אופציונלי)</label><input class="finput" id="f_notes" placeholder="למשל: לא יותר מ-2 לילות בשבת"></div>
+    <div class="frow">
+      <label class="flabel">פעילות מחוץ למשרד 🏃</label>
+      <div style="display:flex;flex-wrap:wrap;gap:5px;margin-top:4px">
+        <label class="chk-item"><input type="checkbox" class="officeout-day" value="ראשון"> ראשון</label>
+        <label class="chk-item"><input type="checkbox" class="officeout-day" value="שני"> שני</label>
+        <label class="chk-item"><input type="checkbox" class="officeout-day" value="שלישי"> שלישי</label>
+        <label class="chk-item"><input type="checkbox" class="officeout-day" value="רביעי"> רביעי</label>
+        <label class="chk-item"><input type="checkbox" class="officeout-day" value="חמישי"> חמישי</label>
+        <label class="chk-item"><input type="checkbox" class="officeout-day" value="שישי"> שישי</label>
+        <label class="chk-item"><input type="checkbox" class="officeout-day" value="שבת"> שבת</label>
+      </div>
+    </div>
+    <div class="frow">
+      <label class="flabel">הדרכה / חפיפה 📚</label>
+      <div style="display:flex;flex-wrap:wrap;gap:5px;margin-top:4px">
+        <label class="chk-item"><input type="checkbox" class="training-day" value="ראשון"> ראשון</label>
+        <label class="chk-item"><input type="checkbox" class="training-day" value="שני"> שני</label>
+        <label class="chk-item"><input type="checkbox" class="training-day" value="שלישי"> שלישי</label>
+        <label class="chk-item"><input type="checkbox" class="training-day" value="רביעי"> רביעי</label>
+        <label class="chk-item"><input type="checkbox" class="training-day" value="חמישי"> חמישי</label>
+        <label class="chk-item"><input type="checkbox" class="training-day" value="שישי"> שישי</label>
+        <label class="chk-item"><input type="checkbox" class="training-day" value="שבת"> שבת</label>
+      </div>
+    </div>
+    <div class="frow">
+      <label class="flabel">תאריך לידה (אופציונלי) 🎂</label>
+      <input class="finput" id="f_birthday" type="date" style="font-family:monospace">
+    </div>
     <div class="frow">
       <label class="flabel">ימי היעדרות (חופש / מחלה)</label>
       <div style="display:flex;flex-direction:column;gap:6px;margin-top:4px">
@@ -617,6 +653,9 @@ function renderWorkers(){
         ${w.blockedDays.length?`<span class="badge b-red">✗ ${w.blockedDays.join(' ')}</span>`:''}
       </div>
       ${w.notes?`<div class="wnotes">📝 ${w.notes}</div>`:''}
+      ${w.birthday?`<div class="wnotes">🎂 ${formatBirthday(w.birthday)}</div>`:''}
+      ${w.officeOutDays&&w.officeOutDays.length?`<div class="wnotes">🏃 מחוץ למשרד: ${w.officeOutDays.join(' ')}</div>`:''}
+      ${w.trainingDays&&w.trainingDays.length?`<div class="wnotes">📚 הדרכה/חפיפה: ${w.trainingDays.join(' ')}</div>`:''}
     </div>`;
   }).join('');
 }
@@ -632,6 +671,8 @@ function openModal(){
   document.getElementById('f_role').value='Shift Analyst';
   document.getElementById('f_notes').value='';
   document.querySelectorAll('#blockedDaysGroup input,#prefShiftsGroup input').forEach(c=>c.checked=false);
+  document.getElementById('f_birthday').value='';
+  document.querySelectorAll('.officeout-day,.training-day').forEach(c=>c.checked=false);
   const sr=document.querySelector('input[name="f_absence_type"][value="none"]');
   if(sr) sr.checked=true;
   document.querySelectorAll('.abs-day').forEach(c=>c.checked=false);
@@ -647,6 +688,9 @@ function editWorker(id){
   document.getElementById('f_name').value=w.name;
   document.getElementById('f_role').value=w.role;
   document.getElementById('f_notes').value=w.notes||'';
+  document.getElementById('f_birthday').value=w.birthday||'';
+  document.querySelectorAll('.officeout-day').forEach(c=>{c.checked=(w.officeOutDays||[]).includes(c.value);});
+  document.querySelectorAll('.training-day').forEach(c=>{c.checked=(w.trainingDays||[]).includes(c.value);});
   document.querySelectorAll('#blockedDaysGroup input').forEach(c=>{c.checked=w.blockedDays.includes(c.value);});
   document.querySelectorAll('#prefShiftsGroup input').forEach(c=>{c.checked=w.prefShifts.includes(c.value);});
   // Absence
@@ -681,6 +725,9 @@ function saveWorker(){
     blockedDays:[...document.querySelectorAll('#blockedDaysGroup input:checked')].map(c=>c.value),
     prefShifts:[...document.querySelectorAll('#prefShiftsGroup input:checked')].map(c=>c.value),
     notes:document.getElementById('f_notes').value,
+    birthday:document.getElementById('f_birthday').value||'',
+    officeOutDays:[...document.querySelectorAll('.officeout-day:checked')].map(c=>c.value),
+    trainingDays:[...document.querySelectorAll('.training-day:checked')].map(c=>c.value),
     absenceType: absType,
     absenceDays: absDays,
     status: absDays.length===7 ? absType : (absType!=='none'&&absDays.length>0 ? 'partial' : 'active'),
@@ -758,23 +805,22 @@ function runAlgorithm(C){
         const c = st[w.name];
 
         // Hard constraints
-        // Check per-day absence
-          if(w.absenceDays&&w.absenceDays.includes(day)) return null; // absent this day
-          // Full week absence (all 7 days)
-          if((w.status==='vacation'||w.status==='sick')&&(!w.absenceDays||w.absenceDays.length===0)) return null;
-          if(w.blockedDays.includes(day)) return null;           // blocked day
-        if(c.byDay[di]!==null) return null;                    // already working today
-        if(isMorning && di>0 && didNight(w.name,di-1)) return null; // rest after night
-        if(consecutiveBefore(w.name,di) >= C.consec) return null;   // consecutive limit
-        if(isNight && c.nights >= C.nights) return null;       // nights limit
-        if(!isWE && c.weekdays >= C.wkmax) return null;        // weekday limit (Sun-Thu only)
+        if(w.absenceDays&&w.absenceDays.includes(day)) return null;
+        if((w.status==='vacation'||w.status==='sick')&&(!w.absenceDays||w.absenceDays.length===0)) return null;
+        if(w.blockedDays.includes(day)) return null;
+        if(c.byDay[di]!==null) return null;
+        if(isMorning && di>0 && didNight(w.name,di-1)) return null;
+        if(consecutiveBefore(w.name,di) >= C.consec) return null;
+        if(isNight && c.nights >= C.nights) return null;
+        if(!isWE && pass===0 && c.weekdays >= C.wkmax) return null;
+        if(!isWE && pass>=1 && c.weekdays >= C.wkmax+2) return null;
 
         // Soft score — lower = more preferred
-        let score = c.total * 100;
-        if(w.prefShifts.length && !w.prefShifts.includes(sh)) score += 30;
+        let score = c.total * 80;
+        if(w.prefShifts.length && !w.prefShifts.includes(sh)) score += 15;
         if(isNight) score += c.nights * 20;
         if(isWE)    score += c.weekend * 15;
-        score += Math.random() * 5; // tiebreak
+        score += Math.random() * 5;
 
         return {w, score};
       }).filter(Boolean);
@@ -838,7 +884,11 @@ function renderSchedule(result, fromCache){
   for(let di=0;di<DAYS.length;di++){
     const d=DAYS[di];
     const dt=weekDates[di]?`<div style="font-size:10px;color:var(--muted);font-family:monospace;font-weight:400;margin-top:1px">${weekDates[di]}</div>`:'';
-    html+=`<th colspan="3" style="border-right:1px solid var(--border)"><div style="font-weight:500">${d}</div>${dt}</th>`;
+    // Check if any worker has birthday on this day
+    const dayDate=getDateForDay(di);
+    const bWorkers=workers.filter(w=>isBirthdayOn(w,dayDate));
+    const bIcon=bWorkers.length?`<span title="${bWorkers.map(w=>w.name).join(', ')} - יום הולדת! 🎂" style="font-size:11px"> 🎂</span>`:'';
+    html+=`<th colspan="3" style="border-right:1px solid var(--border)"><div style="font-weight:500">${d}${bIcon}</div>${dt}</th>`;
   }
   html+='</tr><tr><th class="nc" style="font-size:10px;color:var(--dim)">משמרות</th>';
   for(const d of DAYS) for(const sh of getShiftNames()){ const isLast=sh===getShiftNames()[getShiftNames().length-1]; html+=`<th style="${isLast?'border-right:1px solid var(--border)':''}">${getShiftLabel(sh)}</th>`; }
@@ -864,8 +914,23 @@ function renderSchedule(result, fromCache){
       const blocked=w.blockedDays.includes(d)||isDayAbsent;
       const isLast=sh===getShiftNames()[getShiftNames().length-1];
       const br=isLast?'border-right:1px solid var(--border)':'';
-      if(assigned) html+=`<td style="${br}"><span class="pill p${getShiftCode(sh)}">${sh==='בוקר'?'ב':sh==='צהריים'?'צ':'ל'}</span></td>`;
+      const dayDate2=getDateForDay(di);
+      const isBday=isBirthdayOn(w,dayDate2);
+      const isOfficeOut=(w.officeOutDays||[]).includes(d);
+      const isTraining=(w.trainingDays||[]).includes(d);
+      // Build tooltip
+      const tipParts=[];
+      if(isBday) tipParts.push('🎂 יום הולדת');
+      if(isOfficeOut) tipParts.push('🏃 מחוץ למשרד');
+      if(isTraining) tipParts.push('📚 הדרכה/חפיפה');
+      const tip=tipParts.join(' | ');
+      // Build badge icons for cell
+      const cellBadge=[isBday?'🎂':'',isOfficeOut?'🏃':'',isTraining?'📚':''].filter(Boolean).join('');
+      const cellBg=isBday?'rgba(255,180,0,.08)':isOfficeOut?'rgba(56,139,253,.06)':isTraining?'rgba(57,208,160,.06)':'';
+      if(assigned) html+=`<td style="${br}${cellBg?`;background:${cellBg}`:''}" title="${tip}"><span class="pill p${getShiftCode(sh)}">${sh==='בוקר'?'ב':sh==='צהריים'?'צ':'ל'}</span>${cellBadge?`<span style="font-size:9px;display:block;text-align:center;margin-top:-2px">${cellBadge}</span>`:''}</td>`;
       else if(isDayAbsent) html+=`<td style="background:rgba(240,167,66,.07);${br}" title="${w.absenceType==='vacation'?'חופש':'מחלה'}"><span style="font-size:12px">${absIcon}</span></td>`;
+      else if(isOfficeOut&&!blocked) html+=`<td style="background:rgba(56,139,253,.06);${br}" title="🏃 מחוץ למשרד"><span style="font-size:12px">🏃</span></td>`;
+      else if(isTraining&&!blocked) html+=`<td style="background:rgba(57,208,160,.06);${br}" title="📚 הדרכה/חפיפה"><span style="font-size:12px">📚</span></td>`;
       else if(blocked) html+=`<td style="background:rgba(214,48,48,.04);${br}"><span style="color:rgba(214,48,48,.45);font-size:12px">✗</span></td>`;
       else html+=`<td style="${br}"><span class="poff">—</span></td>`;
     }
@@ -975,6 +1040,32 @@ function initWeekDate(){
   if(input&&!input.value){
     input.value = nextSun.toISOString().split('T')[0];
   }
+}
+
+
+// ═══════════════════════════════════
+//  BIRTHDAY HELPERS
+// ═══════════════════════════════════
+function formatBirthday(dateStr){
+  if(!dateStr) return '';
+  const d = new Date(dateStr);
+  return `${d.getDate().toString().padStart(2,'0')}/${(d.getMonth()+1).toString().padStart(2,'0')}/${d.getFullYear()}`;
+}
+
+function isBirthdayOn(worker, dateStr){
+  if(!worker.birthday||!dateStr) return false;
+  const bday = new Date(worker.birthday);
+  const d    = new Date(dateStr);
+  return bday.getMonth()===d.getMonth() && bday.getDate()===d.getDate();
+}
+
+function getDateForDay(dayIndex){
+  const input=document.getElementById('weekStartDate');
+  if(!input||!input.value) return null;
+  const start=new Date(input.value);
+  if(isNaN(start.getTime())) return null;
+  const d=new Date(start); d.setDate(start.getDate()+dayIndex);
+  return d.toISOString().split('T')[0];
 }
 
 // ═══════════════════════════════════
