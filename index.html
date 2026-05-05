@@ -312,7 +312,7 @@ table.sgrid td.nc{text-align:right;font-weight:500;background:var(--s2);color:va
 <!-- MODAL -->
 <div class="overlay" id="overlay">
   <div class="modal">
-    <div class="modal-title">הוסף עובד לצוות</div>
+    <div class="modal-title" id="modalTitle">הוסף עובד לצוות</div>
     <div class="frow"><label class="flabel">שם מלא</label><input class="finput" id="f_name" placeholder="ישראל ישראלי"></div>
     <div class="frow"><label class="flabel">תפקיד</label><input class="finput" id="f_role" placeholder="Shift Analyst"></div>
     <div class="frow">
@@ -541,6 +541,7 @@ async function loadState(){
     if(C.nights) document.getElementById('c_nights').value=C.nights;
     if(C.cover)  document.getElementById('c_cover').value=C.cover;
     if(s.shifts&&s.shifts.length) shifts=s.shifts;
+    if(s.weekStartDate){const el=document.getElementById('weekStartDate');if(el)el.value=s.weekStartDate;} else initWeekDate();
     renderShiftsLegend();
     updatePrefShiftsModal();
     renderWorkers();
@@ -575,41 +576,85 @@ function flashSaved(){
 //  WORKERS
 // ═══════════════════════════════════════════════════════
 function renderWorkers(){
-  document.getElementById('workersList').innerHTML=workers.map(w=>`
-    <div class="wcard">
-      <button class="wdel" onclick="delWorker(${w.id})">×</button>
-      <div class="wname">${w.name}</div>
-      <div class="wrole">${w.role}</div>
-      <div class="wbadges">
-        ${w.prefShifts.map(s=>`<span class="badge ${s==='בוקר'?'b-blue':s==='צהריים'?'b-teal':'b-amber'}">${s}</span>`).join('')}
+  const BCLS=['b-blue','b-teal','b-amber','b-red','b-red'];
+  const ST={active:{icon:'',label:'',bg:'',bc:''},vacation:{icon:'🏖️',label:'חופש',bg:'rgba(240,167,66,.07)',bc:'rgba(240,167,66,.4)'},sick:{icon:'🤒',label:'מחלה',bg:'rgba(248,81,73,.07)',bc:'rgba(248,81,73,.4)'}};
+  document.getElementById('workersList').innerHTML=workers.map(w=>{
+    const st=ST[w.status||'active'];
+    return `<div class="wcard" style="${st.bg?`background:${st.bg};border-color:${st.bc}`:''}">
+      <div style="display:flex;justify-content:space-between;align-items:flex-start">
+        <div style="flex:1;min-width:0">
+          <div style="display:flex;align-items:center;gap:5px">
+            <span class="wname">${w.name}</span>
+            ${st.icon?`<span style="font-size:11px">${st.icon}</span><span style="font-size:10px;color:${st.bc.replace('.4)','1)')};font-weight:600">${st.label}</span>`:''}
+          </div>
+          <div class="wrole">${w.role}</div>
+        </div>
+        <div style="display:flex;gap:4px;flex-shrink:0">
+          <button onclick="editWorker(${w.id})" style="background:none;border:1px solid var(--border2);border-radius:5px;color:var(--blue);cursor:pointer;font-size:11px;padding:2px 7px;font-family:inherit">✏️</button>
+          <button class="wdel" onclick="delWorker(${w.id})">×</button>
+        </div>
+      </div>
+      <div class="wbadges" style="margin-top:5px">
+        ${w.prefShifts.map((s,i)=>`<span class="badge ${BCLS[i%BCLS.length]}">${s}</span>`).join('')}
         ${w.blockedDays.length?`<span class="badge b-red">✗ ${w.blockedDays.join(' ')}</span>`:''}
       </div>
       ${w.notes?`<div class="wnotes">📝 ${w.notes}</div>`:''}
-    </div>`).join('');
+    </div>`;
+  }).join('');
 }
 
 function delWorker(id){ workers=workers.filter(w=>w.id!==id); renderWorkers(); saveState(); }
 
+let editingId=null;
+
 function openModal(){
+  editingId=null;
+  document.getElementById('modalTitle').textContent='הוסף עובד לצוות';
   document.getElementById('f_name').value='';
   document.getElementById('f_role').value='Shift Analyst';
   document.getElementById('f_notes').value='';
   document.querySelectorAll('#blockedDaysGroup input,#prefShiftsGroup input').forEach(c=>c.checked=false);
+  const sr=document.querySelector('input[name="f_status"][value="active"]');
+  if(sr) sr.checked=true;
   document.getElementById('overlay').classList.add('open');
 }
-function closeModal(){ document.getElementById('overlay').classList.remove('open'); }
+
+function editWorker(id){
+  const w=workers.find(x=>x.id===id);
+  if(!w) return;
+  editingId=id;
+  document.getElementById('modalTitle').textContent='עריכת עובד';
+  document.getElementById('f_name').value=w.name;
+  document.getElementById('f_role').value=w.role;
+  document.getElementById('f_notes').value=w.notes||'';
+  document.querySelectorAll('#blockedDaysGroup input').forEach(c=>{c.checked=w.blockedDays.includes(c.value);});
+  document.querySelectorAll('#prefShiftsGroup input').forEach(c=>{c.checked=w.prefShifts.includes(c.value);});
+  const sr=document.querySelector(`input[name="f_status"][value="${w.status||'active'}"]`);
+  if(sr) sr.checked=true;
+  document.getElementById('overlay').classList.add('open');
+}
+
+function closeModal(){ document.getElementById('overlay').classList.remove('open'); editingId=null; }
 document.getElementById('overlay').addEventListener('click',e=>{if(e.target===e.currentTarget)closeModal()});
 
 function saveWorker(){
   const name=document.getElementById('f_name').value.trim();
   if(!name){alert('נא להזין שם');return}
-  workers.push({
-    id:nextId++, name,
+  const sr=document.querySelector('input[name="f_status"]:checked');
+  const data={
+    name,
     role:document.getElementById('f_role').value||'Shift Analyst',
     blockedDays:[...document.querySelectorAll('#blockedDaysGroup input:checked')].map(c=>c.value),
     prefShifts:[...document.querySelectorAll('#prefShiftsGroup input:checked')].map(c=>c.value),
     notes:document.getElementById('f_notes').value,
-  });
+    status:sr?sr.value:'active',
+  };
+  if(editingId!==null){
+    const idx=workers.findIndex(w=>w.id===editingId);
+    if(idx!==-1) workers[idx]={...workers[idx],...data};
+  } else {
+    workers.push({id:nextId++,...data});
+  }
   renderWorkers(); saveState(); closeModal();
 }
 
@@ -749,18 +794,28 @@ function renderSchedule(result, fromCache){
     <div class="stat"><div class="stat-val" style="color:var(--muted)">${avgS}</div><div class="stat-lbl">ממוצע לעובד</div></div>
     <div class="stat"><div class="stat-val" style="color:${violations&&violations.length?'var(--red)':'var(--teal)'}">${violations?violations.length:0}</div><div class="stat-lbl">התראות</div></div>`;
 
+  const weekDates=getWeekDates();
   let html='<thead><tr><th class="nc">עובד</th>';
-  for(const d of DAYS) html+=`<th colspan="3" style="border-right:1px solid var(--border)">${d}</th>`;
+  for(let di=0;di<DAYS.length;di++){
+    const d=DAYS[di];
+    const dt=weekDates[di]?`<div style="font-size:10px;color:var(--muted);font-family:monospace;font-weight:400;margin-top:1px">${weekDates[di]}</div>`:'';
+    html+=`<th colspan="3" style="border-right:1px solid var(--border)"><div style="font-weight:500">${d}</div>${dt}</th>`;
+  }
   html+='</tr><tr><th class="nc" style="font-size:10px;color:var(--dim)">משמרות</th>';
   for(const d of DAYS) for(const sh of getShiftNames()){ const isLast=sh===getShiftNames()[getShiftNames().length-1]; html+=`<th style="${isLast?'border-right:1px solid var(--border)':''}">${getShiftLabel(sh)}</th>`; }
   html+='</tr></thead><tbody>';
 
-  for(const w of workers){
+  // Show absent workers with greyed out row
+  const allWorkers = [...workers.filter(w=>!(w.status==='vacation'||w.status==='sick')),
+                      ...workers.filter(w=>w.status==='vacation'||w.status==='sick')];
+  for(const w of allWorkers){
     const ws=(stats||{})[w.name]||{};
-    html+=`<tr><td class="nc">
+    const isAbsent=w.status==='vacation'||w.status==='sick';
+    const absentLabel=w.status==='vacation'?'🏖️ חופש':w.status==='sick'?'🤒 מחלה':'';
+    html+=`<tr style="${isAbsent?'opacity:0.45;background:var(--s2)':''}"><td class="nc">
       <div style="display:flex;align-items:center;gap:8px">
         <div style="width:26px;height:26px;border-radius:50%;background:var(--s3);border:1px solid var(--border2);display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:600;flex-shrink:0;color:var(--blue)">${w.name[0]}</div>
-        <div><div style="font-size:13px">${w.name}</div><div style="font-size:10px;color:var(--muted)">${ws.total_shifts||0} משמ׳</div></div>
+        <div><div style="font-size:13px">${w.name}${isAbsent?` <span style="font-size:10px">${absentLabel}</span>`:''}</div><div style="font-size:10px;color:var(--muted)">${isAbsent?absentLabel:`${ws.total_shifts||0} משמ׳`}</div></div>
       </div></td>`;
     for(const d of DAYS) for(const sh of getShiftNames()){
       const assigned=schedule[d]?.[sh]?.includes(w.name);
