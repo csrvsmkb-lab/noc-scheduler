@@ -910,7 +910,7 @@ updatePrefShiftsModal();
     if(d.authed){
       currentIsAdmin = d.isAdmin;
       showApp(d.username);
-      if(d.isAdmin) document.getElementById('adminBtn').style.display='flex';
+     currentIsAdmin = d.isAdmin;
       await loadState();
     }
   } catch(e){}
