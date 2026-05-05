@@ -918,7 +918,7 @@ function renderSchedule(result, fromCache){
       const blocked=w.blockedDays.includes(d)||isDayAbsent;
       const isLast=sh===getShiftNames()[getShiftNames().length-1];
       const br=isLast?'border-right:1px solid var(--border)':'';
-      const dayDate2=getDateForDay(di);
+      const dayDate2=getDateForDay(DAYS.indexOf(d));
       const isBday=isBirthdayOn(w,dayDate2);
       const isOfficeOut=(w.officeOutDays||[]).includes(d);
       const isTraining=(w.trainingDays||[]).includes(d);
