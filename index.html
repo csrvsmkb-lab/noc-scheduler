@@ -920,7 +920,10 @@ updatePrefShiftsModal();
     if(d.authed){
       currentIsAdmin = d.isAdmin;
       showApp(d.username);
-if(d.authed){
+  currentIsAdmin = d.isAdmin;
+  showApp(d.username);
+  await loadState();
+}
   currentIsAdmin = d.isAdmin;
   showApp(d.username);
   await loadState();
