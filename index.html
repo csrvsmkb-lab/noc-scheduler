@@ -333,17 +333,32 @@ table.sgrid td.nc{text-align:right;font-weight:500;background:var(--s2);color:va
     </div>
     <div class="frow"><label class="flabel">הגבלות אישיות (אופציונלי)</label><input class="finput" id="f_notes" placeholder="למשל: לא יותר מ-2 לילות בשבת"></div>
     <div class="frow">
-      <label class="flabel">סטטוס השבוע</label>
-      <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:4px">
-        <label class="chk-item" style="flex:1;justify-content:center">
-          <input type="radio" name="f_status" value="active" checked style="accent-color:var(--blue)"> ✅ פעיל
-        </label>
-        <label class="chk-item" style="flex:1;justify-content:center;border-color:rgba(240,167,66,.3)">
-          <input type="radio" name="f_status" value="vacation" style="accent-color:var(--amber)"> 🏖️ חופש
-        </label>
-        <label class="chk-item" style="flex:1;justify-content:center;border-color:rgba(248,81,73,.3)">
-          <input type="radio" name="f_status" value="sick" style="accent-color:var(--red)"> 🤒 מחלה
-        </label>
+      <label class="flabel">ימי היעדרות (חופש / מחלה)</label>
+      <div style="display:flex;flex-direction:column;gap:6px;margin-top:4px">
+        <div id="absenceDaysGroup" style="display:flex;flex-wrap:wrap;gap:5px"></div>
+        <div style="display:flex;gap:6px;margin-top:2px">
+          <label style="display:flex;align-items:center;gap:4px;font-size:11px;color:var(--muted);cursor:pointer">
+            <input type="radio" name="f_absence_type" value="none" checked style="accent-color:var(--blue)"> ✅ פעיל (ללא היעדרות)
+          </label>
+          <label style="display:flex;align-items:center;gap:4px;font-size:11px;color:var(--amber);cursor:pointer">
+            <input type="radio" name="f_absence_type" value="vacation" style="accent-color:var(--amber)"> 🏖️ חופש
+          </label>
+          <label style="display:flex;align-items:center;gap:4px;font-size:11px;color:var(--red);cursor:pointer">
+            <input type="radio" name="f_absence_type" value="sick" style="accent-color:var(--red)"> 🤒 מחלה
+          </label>
+        </div>
+        <div id="absenceDaysWrap" style="display:none">
+          <div style="font-size:11px;color:var(--muted);margin-bottom:4px">בחר ימים:</div>
+          <div style="display:flex;flex-wrap:wrap;gap:5px" id="absenceDaysPicker">
+            <label class="chk-item"><input type="checkbox" class="abs-day" value="ראשון"> ראשון</label>
+            <label class="chk-item"><input type="checkbox" class="abs-day" value="שני"> שני</label>
+            <label class="chk-item"><input type="checkbox" class="abs-day" value="שלישי"> שלישי</label>
+            <label class="chk-item"><input type="checkbox" class="abs-day" value="רביעי"> רביעי</label>
+            <label class="chk-item"><input type="checkbox" class="abs-day" value="חמישי"> חמישי</label>
+            <label class="chk-item"><input type="checkbox" class="abs-day" value="שישי"> שישי</label>
+            <label class="chk-item"><input type="checkbox" class="abs-day" value="שבת"> שבת</label>
+          </div>
+        </div>
       </div>
     </div>
     <div class="mactions">
@@ -577,9 +592,11 @@ function flashSaved(){
 // ═══════════════════════════════════════════════════════
 function renderWorkers(){
   const BCLS=['b-blue','b-teal','b-amber','b-red','b-red'];
-  const ST={active:{icon:'',label:'',bg:'',bc:''},vacation:{icon:'🏖️',label:'חופש',bg:'rgba(240,167,66,.07)',bc:'rgba(240,167,66,.4)'},sick:{icon:'🤒',label:'מחלה',bg:'rgba(248,81,73,.07)',bc:'rgba(248,81,73,.4)'}};
+  const ST={active:{icon:'',label:'',bg:'',bc:''},vacation:{icon:'🏖️',label:'חופש',bg:'rgba(240,167,66,.07)',bc:'rgba(240,167,66,.4)'},sick:{icon:'🤒',label:'מחלה',bg:'rgba(248,81,73,.07)',bc:'rgba(248,81,73,.4)'},partial:{icon:'📅',label:'חלקי',bg:'rgba(240,167,66,.05)',bc:'rgba(240,167,66,.3)'}};
   document.getElementById('workersList').innerHTML=workers.map(w=>{
-    const st=ST[w.status||'active'];
+    const effStatus = (w.absenceDays&&w.absenceDays.length>0&&w.absenceDays.length<7) ? 'partial' : (w.status||'active');
+    const st=ST[effStatus]||ST.active;
+    const absLabel = w.absenceDays&&w.absenceDays.length>0 ? `${w.absenceType==='vacation'?'🏖️':'🤒'} ${w.absenceDays.join(' ')}` : '';
     return `<div class="wcard" style="${st.bg?`background:${st.bg};border-color:${st.bc}`:''}">
       <div style="display:flex;justify-content:space-between;align-items:flex-start">
         <div style="flex:1;min-width:0">
@@ -588,6 +605,7 @@ function renderWorkers(){
             ${st.icon?`<span style="font-size:11px">${st.icon}</span><span style="font-size:10px;color:${st.bc.replace('.4)','1)')};font-weight:600">${st.label}</span>`:''}
           </div>
           <div class="wrole">${w.role}</div>
+          ${absLabel?`<div style="font-size:10px;color:var(--muted);margin-top:2px">${absLabel}</div>`:''}
         </div>
         <div style="display:flex;gap:4px;flex-shrink:0">
           <button onclick="editWorker(${w.id})" style="background:none;border:1px solid var(--border2);border-radius:5px;color:var(--blue);cursor:pointer;font-size:11px;padding:2px 7px;font-family:inherit">✏️</button>
@@ -614,8 +632,10 @@ function openModal(){
   document.getElementById('f_role').value='Shift Analyst';
   document.getElementById('f_notes').value='';
   document.querySelectorAll('#blockedDaysGroup input,#prefShiftsGroup input').forEach(c=>c.checked=false);
-  const sr=document.querySelector('input[name="f_status"][value="active"]');
+  const sr=document.querySelector('input[name="f_absence_type"][value="none"]');
   if(sr) sr.checked=true;
+  document.querySelectorAll('.abs-day').forEach(c=>c.checked=false);
+  document.getElementById('absenceDaysWrap').style.display='none';
   document.getElementById('overlay').classList.add('open');
 }
 
@@ -629,25 +649,41 @@ function editWorker(id){
   document.getElementById('f_notes').value=w.notes||'';
   document.querySelectorAll('#blockedDaysGroup input').forEach(c=>{c.checked=w.blockedDays.includes(c.value);});
   document.querySelectorAll('#prefShiftsGroup input').forEach(c=>{c.checked=w.prefShifts.includes(c.value);});
-  const sr=document.querySelector(`input[name="f_status"][value="${w.status||'active'}"]`);
+  // Absence
+  const absType = w.absenceType||'none';
+  const sr=document.querySelector(`input[name="f_absence_type"][value="${absType}"]`);
   if(sr) sr.checked=true;
+  const absDays = w.absenceDays||[];
+  document.querySelectorAll('.abs-day').forEach(c=>{c.checked=absDays.includes(c.value);});
+  document.getElementById('absenceDaysWrap').style.display=(absType!=='none')?'block':'none';
   document.getElementById('overlay').classList.add('open');
 }
 
 function closeModal(){ document.getElementById('overlay').classList.remove('open'); editingId=null; }
 document.getElementById('overlay').addEventListener('click',e=>{if(e.target===e.currentTarget)closeModal()});
 
+// Show/hide absence days picker
+document.querySelectorAll('input[name="f_absence_type"]').forEach(r=>{
+  r.addEventListener('change',()=>{
+    const v=document.querySelector('input[name="f_absence_type"]:checked')?.value;
+    document.getElementById('absenceDaysWrap').style.display=(v&&v!=='none')?'block':'none';
+  });
+});
+
 function saveWorker(){
   const name=document.getElementById('f_name').value.trim();
   if(!name){alert('נא להזין שם');return}
-  const sr=document.querySelector('input[name="f_status"]:checked');
+  const absType = document.querySelector('input[name="f_absence_type"]:checked')?.value||'none';
+  const absDays = absType!=='none' ? [...document.querySelectorAll('.abs-day:checked')].map(c=>c.value) : [];
   const data={
     name,
     role:document.getElementById('f_role').value||'Shift Analyst',
     blockedDays:[...document.querySelectorAll('#blockedDaysGroup input:checked')].map(c=>c.value),
     prefShifts:[...document.querySelectorAll('#prefShiftsGroup input:checked')].map(c=>c.value),
     notes:document.getElementById('f_notes').value,
-    status:sr?sr.value:'active',
+    absenceType: absType,
+    absenceDays: absDays,
+    status: absDays.length===7 ? absType : (absType!=='none'&&absDays.length>0 ? 'partial' : 'active'),
   };
   if(editingId!==null){
     const idx=workers.findIndex(w=>w.id===editingId);
@@ -722,7 +758,10 @@ function runAlgorithm(C){
         const c = st[w.name];
 
         // Hard constraints
-        if(w.status==='vacation'||w.status==='sick') return null; // absent
+        // Check per-day absence
+          if(w.absenceDays&&w.absenceDays.includes(day)) return null; // absent this day
+          // Full week absence (all 7 days)
+          if((w.status==='vacation'||w.status==='sick')&&(!w.absenceDays||w.absenceDays.length===0)) return null;
           if(w.blockedDays.includes(day)) return null;           // blocked day
         if(c.byDay[di]!==null) return null;                    // already working today
         if(isMorning && di>0 && didNight(w.name,di-1)) return null; // rest after night
@@ -810,8 +849,9 @@ function renderSchedule(result, fromCache){
                       ...workers.filter(w=>w.status==='vacation'||w.status==='sick')];
   for(const w of allWorkers){
     const ws=(stats||{})[w.name]||{};
-    const isAbsent=w.status==='vacation'||w.status==='sick';
-    const absentLabel=w.status==='vacation'?'🏖️ חופש':w.status==='sick'?'🤒 מחלה':'';
+    const fullAbsent=(w.status==='vacation'||w.status==='sick')&&(!w.absenceDays||w.absenceDays.length===0);
+    const isAbsent=fullAbsent;
+    const absentLabel=w.absenceType==='vacation'?'🏖️':w.absenceType==='sick'?'🤒':'';
     html+=`<tr style="${isAbsent?'opacity:0.45;background:var(--s2)':''}"><td class="nc">
       <div style="display:flex;align-items:center;gap:8px">
         <div style="width:26px;height:26px;border-radius:50%;background:var(--s3);border:1px solid var(--border2);display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:600;flex-shrink:0;color:var(--blue)">${w.name[0]}</div>
@@ -823,6 +863,7 @@ function renderSchedule(result, fromCache){
       const isLast=sh===getShiftNames()[getShiftNames().length-1];
       const br=isLast?'border-right:1px solid var(--border)':'';
       if(assigned) html+=`<td style="${br}"><span class="pill p${getShiftCode(sh)}">${sh==='בוקר'?'ב':sh==='צהריים'?'צ':'ל'}</span></td>`;
+      else if(isDayAbsent) html+=`<td style="background:rgba(240,167,66,.07);${br}" title="${w.absenceType==='vacation'?'חופש':'מחלה'}"><span style="font-size:12px">${absIcon}</span></td>`;
       else if(blocked) html+=`<td style="background:rgba(214,48,48,.04);${br}"><span style="color:rgba(214,48,48,.45);font-size:12px">✗</span></td>`;
       else html+=`<td style="${br}"><span class="poff">—</span></td>`;
     }
