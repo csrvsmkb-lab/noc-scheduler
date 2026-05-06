@@ -461,22 +461,37 @@ td.locked-cell::after{content:'🔒';position:absolute;top:1px;right:1px;font-si
       </div>
     </div>
     <div style="border-top:1px solid var(--border);padding-top:14px">
-      <div style="font-size:12px;font-weight:600;margin-bottom:10px">+ יצירת משתמש חדש לעובד</div>
-      <div style="margin-bottom:8px">
+      <div style="font-size:13px;font-weight:600;margin-bottom:12px">+ הוספת משתמש חדש</div>
+
+      <!-- Role selection -->
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:14px" id="roleSelectGroup">
+        <div id="roleWorkerBtn" onclick="selectUserRole('worker')" style="border:2px solid var(--border2);border-radius:9px;padding:12px;text-align:center;cursor:pointer;transition:all .15s">
+          <div style="font-size:18px;margin-bottom:4px">👤</div>
+          <div style="font-size:13px;font-weight:600">עובד</div>
+          <div style="font-size:10px;color:var(--muted);margin-top:2px">רואה פורטל עובד בלבד</div>
+        </div>
+        <div id="roleManagerBtn" onclick="selectUserRole('manager')" style="border:2px solid var(--border2);border-radius:9px;padding:12px;text-align:center;cursor:pointer;transition:all .15s">
+          <div style="font-size:18px;margin-bottom:4px">👔</div>
+          <div style="font-size:13px;font-weight:600">מנהל משמרות</div>
+          <div style="font-size:10px;color:var(--muted);margin-top:2px">גישה מלאה למערכת</div>
+        </div>
+      </div>
+
+      <!-- Worker dropdown (shown for worker role) -->
+      <div id="workerSelectWrap" style="display:none;margin-bottom:8px">
         <label class="flabel">בחר עובד מהרשימה</label>
         <select class="finput" id="newWorkerSelect" style="margin-top:4px" onchange="onWorkerSelectChange()">
           <option value="">— בחר עובד —</option>
         </select>
       </div>
+
       <div style="display:flex;gap:8px;margin-bottom:8px">
-        <input class="finput" id="newUsername" placeholder="שם משתמש (עברית)" style="flex:1">
+        <input class="finput" id="newUsername" placeholder="שם משתמש" style="flex:1">
         <input class="finput" id="newUserPass" type="password" placeholder="סיסמה (מינ׳ 4)" style="flex:1">
       </div>
-      <label id="adminCheckWrap" style="display:none;align-items:center;gap:6px;font-size:12px;color:var(--muted);margin-bottom:10px;cursor:pointer">
-        <input type="checkbox" id="newUserIsAdmin" style="accent-color:var(--blue)"> הגדר כמנהל מערכת
-      </label>
-      <button class="btn-save" style="width:100%" onclick="createUser()">+ צור משתמש לעובד</button>
-      <div id="adminMsg" style="font-size:12px;margin-top:8px;display:none"></div>
+      <input type="hidden" id="newUserRole" value="">
+      <button class="btn-save" style="width:100%;opacity:.5;pointer-events:none" id="createUserBtn" onclick="createUser()">+ צור משתמש</button>
+      <div id="adminMsg" style="font-size:12px;margin-top:8px;display:none;padding:7px 10px;border-radius:6px"></div>
     </div>
     <div class="mactions" style="margin-top:12px">
       <button class="btn-cancel" onclick="closeAdminPanel()">סגור</button>
@@ -653,7 +668,7 @@ function openShiftsModal(){
 function closeShiftsModal(){
   document.getElementById('shiftsOverlay').classList.remove('open');
 }
-document.getElementById('shiftsOverlay').addEventListener('click',e=>{if(e.target===e.currentTarget)closeShiftsModal()});
+document.getElementById('shiftsOverlay')?.addEventListener('click',e=>{if(e.target===e.currentTarget)closeShiftsModal()});
 
 function renderShiftsModalList(){
   const allDays=['ראשון','שני','שלישי','רביעי','חמישי','שישי','שבת'];
@@ -907,7 +922,7 @@ function editWorker(id){
 }
 
 function closeModal(){ document.getElementById('overlay').classList.remove('open'); editingId=null; }
-document.getElementById('overlay').addEventListener('click',e=>{if(e.target===e.currentTarget)closeModal()});
+document.getElementById('overlay')?.addEventListener('click',e=>{if(e.target===e.currentTarget)closeModal()});
 
 // Show/hide absence days picker
 document.querySelectorAll('input[name="f_absence_type"]').forEach(r=>{
@@ -1377,7 +1392,7 @@ function closeCustomize(){
   document.getElementById('customizeOverlay').classList.remove('open');
   saveCustomize();
 }
-document.getElementById('customizeOverlay').addEventListener('click',e=>{if(e.target===e.currentTarget)closeCustomize()});
+document.getElementById('customizeOverlay')?.addEventListener('click',e=>{if(e.target===e.currentTarget)closeCustomize()});
 
 function changeFontSize(delta){
   const root=document.documentElement;
@@ -1447,7 +1462,7 @@ async function openReport(){
   document.getElementById('reportOverlay').classList.add('open');
 }
 function closeReport(){ document.getElementById('reportOverlay').classList.remove('open'); }
-document.getElementById('reportOverlay').addEventListener('click',e=>{if(e.target===e.currentTarget)closeReport()});
+document.getElementById('reportOverlay')?.addEventListener('click',e=>{if(e.target===e.currentTarget)closeReport()});
 
 let reportUsersData=[];
 
@@ -1484,7 +1499,7 @@ async function loadReportUsers(){
                   ${u.username}
                 </div>
               </td>
-              <td style="padding:9px 12px"><span style="font-size:11px;padding:2px 8px;border-radius:10px;background:${u.isAdmin?'rgba(26,110,245,.1)':'rgba(90,100,120,.1)'};color:${u.isAdmin?'var(--blue)':'var(--muted)'}">${u.isAdmin?'👑 אדמין':'👤 משתמש'}</span></td>
+              <td style="padding:9px 12px"><span style="font-size:11px;padding:2px 8px;border-radius:10px;background:${u.isAdmin?'rgba(26,110,245,.1)':'rgba(90,100,120,.1)'};color:${u.isAdmin?'var(--blue)':'var(--muted)'}">${u.username===window._myUsername?'👑 מנהל מערכת':u.isAdmin?'👔 מנהל משמרות':'👤 עובד'}</span></td>
               <td style="padding:9px 12px;color:var(--muted);font-size:12px">${u.created||'—'}</td>
               <td style="padding:9px 12px;color:var(--muted);font-size:12px">${u.lastLogin||'טרם נכנס'}</td>
               <td style="padding:9px 12px;text-align:center">
@@ -1520,14 +1535,22 @@ function exportUsersCSV(){
 let changePwUserId = null;
 
 async function openAdminPanel(){
-  document.getElementById('adminMsg').style.display='none';
-  // Show admin checkbox only for super-admin
-  const meR=await fetch('/api/me');
-  const meD=await meR.json();
-  const isSuperAdmin=meD.isAdmin&&meD.username&&meD.username===window._myUsername;
-  const adminWrap=document.getElementById('adminCheckWrap');
-  if(adminWrap) adminWrap.style.display=isSuperAdmin?'flex':'none';
-  await loadWorkerDropdown();
+  const msgEl=document.getElementById('adminMsg');
+  if(msgEl) msgEl.style.display='none';
+  // Reset role selection
+  _selectedRole='';
+  const wBtn=document.getElementById('roleWorkerBtn');
+  const mBtn=document.getElementById('roleManagerBtn');
+  if(wBtn){wBtn.style.border='2px solid var(--border2)';wBtn.style.background='';}
+  if(mBtn){mBtn.style.border='2px solid var(--border2)';mBtn.style.background='';}
+  const wWrap=document.getElementById('workerSelectWrap');
+  if(wWrap) wWrap.style.display='none';
+  const cBtn=document.getElementById('createUserBtn');
+  if(cBtn){cBtn.style.opacity='.5';cBtn.style.pointerEvents='none';}
+  const unEl=document.getElementById('newUsername');
+  if(unEl) unEl.value='';
+  const pwEl=document.getElementById('newUserPass');
+  if(pwEl) pwEl.value='';
   document.getElementById('changePwBox').style.display='none';
   document.getElementById('newUsername').value='';
   document.getElementById('newUserPass').value='';
@@ -1536,7 +1559,7 @@ async function openAdminPanel(){
   document.getElementById('adminOverlay').classList.add('open');
 }
 function closeAdminPanel(){ document.getElementById('adminOverlay').classList.remove('open'); }
-document.getElementById('adminOverlay').addEventListener('click',e=>{if(e.target===e.currentTarget)closeAdminPanel()});
+document.getElementById('adminOverlay')?.addEventListener('click',e=>{if(e.target===e.currentTarget)closeAdminPanel()});
 
 async function loadAdminUsers(){
   try {
@@ -1591,29 +1614,71 @@ async function toggleAdmin(id,makeAdmin){
   else alert(d.error||'שגיאה');
 }
 
-async function createUser(){
-  const username=document.getElementById('newUsername').value.trim();
-  const password=document.getElementById('newUserPass').value;
-  const isAdminEl=document.getElementById('newUserIsAdmin');
-  const isAdmin=isAdminEl&&isAdminEl.checked;
-  if(!username||!password){ showAdminMsg('נא למלא שם וסיסמה','var(--red)'); return; }
-  if(password.length<4){ showAdminMsg('סיסמה חייבת 4+ תווים','var(--red)'); return; }
-  const r=await fetch('/api/register',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({username,password,is_admin:isAdmin})});
-  const d=await r.json();
-  if(d.ok){
-    showAdminMsg(`✓ עובד "${username}" קיבל גישה למערכת`,'var(--teal)');
+let _selectedRole = '';
+
+function selectUserRole(role){
+  _selectedRole = role;
+  const wBtn=document.getElementById('roleWorkerBtn');
+  const mBtn=document.getElementById('roleManagerBtn');
+  const wWrap=document.getElementById('workerSelectWrap');
+  const createBtn=document.getElementById('createUserBtn');
+  const usernameFld=document.getElementById('newUsername');
+
+  if(role==='worker'){
+    wBtn.style.border='2px solid var(--blue)';
+    wBtn.style.background='rgba(26,110,245,.08)';
+    mBtn.style.border='2px solid var(--border2)';
+    mBtn.style.background='';
+    wWrap.style.display='block';
+    usernameFld.placeholder='שם עובד בעברית';
+    loadWorkerDropdown();
+  } else {
+    mBtn.style.border='2px solid var(--blue)';
+    mBtn.style.background='rgba(26,110,245,.08)';
+    wBtn.style.border='2px solid var(--border2)';
+    wBtn.style.background='';
+    wWrap.style.display='none';
+    usernameFld.placeholder='שם משתמש';
     document.getElementById('newUsername').value='';
-    document.getElementById('newUserPass').value='';
-    document.getElementById('newWorkerSelect').value='';
-    if(isAdminEl) isAdminEl.checked=false;
-    await loadAdminUsers();
-  } else showAdminMsg(d.error||'שגיאה','var(--red)');
+  }
+  createBtn.style.opacity='1';
+  createBtn.style.pointerEvents='auto';
 }
 
 function onWorkerSelectChange(){
   const sel=document.getElementById('newWorkerSelect');
-  const inp=document.getElementById('newUsername');
-  if(sel.value) inp.value=sel.value;
+  if(sel.value) document.getElementById('newUsername').value=sel.value;
+}
+
+async function createUser(){
+  if(!_selectedRole){ showAdminMsg('נא לבחור סוג משתמש (עובד / מנהל)','var(--red)'); return; }
+  const username=document.getElementById('newUsername').value.trim();
+  const password=document.getElementById('newUserPass').value;
+  if(!username||!password){ showAdminMsg('נא למלא שם וסיסמה','var(--red)'); return; }
+  if(password.length<4){ showAdminMsg('סיסמה חייבת 4+ תווים','var(--red)'); return; }
+  const isAdmin = _selectedRole==='manager';
+  const r=await fetch('/api/register',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({username,password,is_admin:isAdmin})});
+  const d=await r.json();
+  if(d.ok){
+    const roleLabel=isAdmin?'מנהל משמרות':'עובד';
+    showAdminMsg(`✓ ${roleLabel} "${username}" נוצר בהצלחה`,'var(--teal)');
+    document.getElementById('newUsername').value='';
+    document.getElementById('newUserPass').value='';
+    const sel=document.getElementById('newWorkerSelect');
+    if(sel) sel.value='';
+    // Reset role selection
+    _selectedRole='';
+    document.getElementById('roleWorkerBtn').style.border='2px solid var(--border2)';
+    document.getElementById('roleWorkerBtn').style.background='';
+    document.getElementById('roleManagerBtn').style.border='2px solid var(--border2)';
+    document.getElementById('roleManagerBtn').style.background='';
+    document.getElementById('workerSelectWrap').style.display='none';
+    document.getElementById('createUserBtn').style.opacity='.5';
+    document.getElementById('createUserBtn').style.pointerEvents='none';
+    await loadAdminUsers();
+  } else {
+    showAdminMsg(d.error||'שגיאה','var(--red)');
+  }
 }
 
 async function loadWorkerDropdown(){
@@ -1649,8 +1714,12 @@ async function deleteUser(id,username){
 
 function showAdminMsg(text,color){
   const el=document.getElementById('adminMsg');
-  el.textContent=text; el.style.color=color; el.style.display='block';
-  setTimeout(()=>el.style.display='none',3000);
+  if(!el) return;
+  el.textContent=text; el.style.color=color;
+  el.style.background=color.includes('teal')?'rgba(13,158,114,.08)':'rgba(214,48,48,.07)';
+  el.style.border='1px solid '+(color.includes('teal')?'rgba(13,158,114,.2)':'rgba(214,48,48,.2)');
+  el.style.display='block';
+  setTimeout(()=>el.style.display='none',4000);
 }
 
 loadCustomize();
