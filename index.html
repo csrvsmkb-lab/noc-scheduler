@@ -1232,8 +1232,7 @@ function exportUsersCSV(){
   if(!reportUsersData.length) return;
   const rows=[['שם משתמש','סוג','נוצר','כניסה אחרונה']];
   reportUsersData.forEach(u=>rows.push([u.username,u.isAdmin?'אדמין':'משתמש',u.created||'',u.lastLogin||'']));
-  const csv=rows.map(r=>r.map(c=>'"'+c+'"').join(',')).join('\r\n');
-');
+  const csv=rows.map(r=>r.map(c=>JSON.stringify(c)).join(",")).join("\r\n");
   const blob=new Blob(['\uFEFF'+csv],{type:'text/csv;charset=utf-8'});
   const a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download='users-report.csv';a.click();
 }
