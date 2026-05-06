@@ -68,7 +68,10 @@ def execute_sql(db, sql):
         db.executescript(sql)
 
 def pg_sql(sql):
-    return sql.replace("?", "%s")
+    sql = sql.replace("?", "%s")
+    if is_pg():
+        sql = sql.replace("datetime('now')", "NOW()")
+    return sql
 
 def fetchone(db, sql, params=()):
     if is_pg():
@@ -97,7 +100,10 @@ def execute(db, sql, params=()):
         db.commit()
         return cur
     cur = db.execute(sql, params)
-    db.commit()
+    try:
+        db.commit()
+    except Exception:
+        pass
     return cur
 
 def init_db():
@@ -237,7 +243,7 @@ def save_user_data(user_id, data):
         execute(db, """
             INSERT INTO user_data (user_id, data, updated)
             VALUES (?,?, datetime('now'))
-            ON CONFLICT(user_id) DO UPDATE SET data=excluded.data, updated=excluded.updated
+            ON CONFLICT(user_id) DO UPDATE SET data=excluded.data, updated=datetime('now')
         """, (user_id, j))
 
 def get_default_data():
