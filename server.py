@@ -320,7 +320,7 @@ class Handler(http.server.BaseHTTPRequestHandler):
                 with get_db() as db:
                     row = fetchone(db, "SELECT username, is_admin FROM users WHERE id=?", (user_id,))
                 username = row['username'] if row else ''
-                is_admin_flag = bool(row and (row.get('is_admin') or row['username'] == ADMIN_USERNAME))
+                is_admin_flag = bool(row and (row['username'] == ADMIN_USERNAME or int(row.get('is_admin') or 0) == 1))
                 return self.send_json(200, {'authed': True, 'username': username, 'isAdmin': is_admin_flag})
             return self.send_json(200, {'authed': False, 'isAdmin': False})
 
@@ -333,12 +333,12 @@ class Handler(http.server.BaseHTTPRequestHandler):
             if not user_id: return self.send_json(401, {'error': 'לא מחובר'})
             with get_db() as db:
                 row = fetchone(db, "SELECT username, is_admin FROM users WHERE id=?", (user_id,))
-                if not row or (row['username'] != ADMIN_USERNAME and not row.get('is_admin')):
+                if not row or (row['username'] != ADMIN_USERNAME and int(row.get('is_admin') or 0) != 1):
                     return self.send_json(403, {'error': 'אין הרשאה'})
                 users = fetchall(db, "SELECT id, username, is_admin, created FROM users ORDER BY created")
                 return self.send_json(200, {'users': [
                     {'id': u['id'], 'username': u['username'],
-                     'isAdmin': bool(u['is_admin']), 'created': u['created']}
+                     'isAdmin': bool(int(u.get('is_admin') or 0) == 1 or u['username'] == ADMIN_USERNAME), 'created': u['created']}
                     for u in users
                 ]})
 
@@ -385,8 +385,9 @@ class Handler(http.server.BaseHTTPRequestHandler):
             if req_user_id:
                 with get_db() as db:
                     row = fetchone(db, "SELECT username, is_admin FROM users WHERE id=?", (req_user_id,))
-                    is_admin = bool(row and (row['username'] == ADMIN_USERNAME or row.get('is_admin')))
+                    is_admin = bool(row and (row['username'] == ADMIN_USERNAME or int(row.get('is_admin') or 0) == 1))
             if not is_admin and count_users() > 0:
+                print(f"Register blocked: req_user_id={req_user_id}, is_admin={is_admin}", flush=True)
                 return self.send_json(403, {'error': 'רק מנהל המערכת יכול ליצור משתמשים'})
             username = payload.get('username','').strip()
             password = payload.get('password','')
@@ -442,12 +443,12 @@ class Handler(http.server.BaseHTTPRequestHandler):
             if not req_user_id: return self.send_json(401, {'error': 'לא מחובר'})
             with get_db() as db:
                 row = fetchone(db, "SELECT username, is_admin FROM users WHERE id=?", (req_user_id,))
-                if not row or (row['username'] != ADMIN_USERNAME and not row.get('is_admin')):
+                if not row or (row['username'] != ADMIN_USERNAME and int(row.get('is_admin') or 0) != 1):
                     return self.send_json(403, {'error': 'אין הרשאה'})
                 users = fetchall(db, "SELECT id, username, is_admin, created FROM users ORDER BY created")
                 return self.send_json(200, {'users': [
                     {'id': u['id'], 'username': u['username'],
-                     'isAdmin': bool(u['is_admin']), 'created': u['created']}
+                     'isAdmin': bool(int(u.get('is_admin') or 0) == 1 or u['username'] == ADMIN_USERNAME), 'created': u['created']}
                     for u in users
                 ]})
 
@@ -457,7 +458,7 @@ class Handler(http.server.BaseHTTPRequestHandler):
             if not req_user_id: return self.send_json(401, {'error': 'לא מחובר'})
             with get_db() as db:
                 row = fetchone(db, "SELECT username, is_admin FROM users WHERE id=?", (req_user_id,))
-                if not row or (row['username'] != ADMIN_USERNAME and not row.get('is_admin')):
+                if not row or (row['username'] != ADMIN_USERNAME and int(row.get('is_admin') or 0) != 1):
                     return self.send_json(403, {'error': 'אין הרשאה'})
                 target_id = payload.get('user_id')
                 new_pass  = payload.get('new_password','')
@@ -472,7 +473,7 @@ class Handler(http.server.BaseHTTPRequestHandler):
             if not req_user_id: return self.send_json(401, {'error': 'לא מחובר'})
             with get_db() as db:
                 row = fetchone(db, "SELECT username, is_admin FROM users WHERE id=?", (req_user_id,))
-                if not row or (row['username'] != ADMIN_USERNAME and not row.get('is_admin')):
+                if not row or (row['username'] != ADMIN_USERNAME and int(row.get('is_admin') or 0) != 1):
                     return self.send_json(403, {'error': 'אין הרשאה'})
                 target_id  = payload.get('user_id')
                 is_admin_v = payload.get('is_admin', False)
