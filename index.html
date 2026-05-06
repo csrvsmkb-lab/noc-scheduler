@@ -163,12 +163,18 @@ table.sgrid td.nc{text-align:right;font-weight:500;background:var(--s2);color:va
   #forceAssignWrap,
   .sched-wrap > .stats-row,
   [id="forceAssignWrap"] { display:none!important }
-table.sgrid td.nc, table.sgrid th.nc {
-    max-width: 45px !important;
-    font-size: 6.5px !important;
-    white-space: normal !important;
-    word-break: break-all !important;
-    padding: 2px 2px !important;
+table.sgrid td.nc { 
+    width: 22px !important;
+    max-width: 22px !important;
+    overflow: hidden !important;
+    padding: 2px 1px !important;
+  }
+  table.sgrid td.nc > div { display: none !important; }
+  table.sgrid td.nc > div:first-child { display: flex !important; }
+  table.sgrid th.nc {
+    width: 22px !important;
+    max-width: 22px !important;
+    font-size: 7px !important;
   }
   /* Page setup — landscape, tight margins */
   @page {
