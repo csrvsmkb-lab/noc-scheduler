@@ -8,12 +8,21 @@
 <style>
 *{box-sizing:border-box;margin:0;padding:0}
 :root{
-  --bg:#f0f2f5;--s1:#ffffff;--s2:#f6f8fa;--s3:#eef0f3;
-  --border:rgba(30,100,220,0.13);--border2:rgba(30,100,220,0.30);
-  --blue:#1a6ef5;--teal:#0d9e72;--amber:#c87d0a;--red:#d63030;
-  --text:#1a1f2e;--muted:#5a6478;--dim:#aab0bc;
+  --bg:#eef0f5;--s1:#f7f8fc;--s2:#edf0f7;--s3:#e4e8f2;
+  --border:rgba(30,80,180,0.12);--border2:rgba(30,80,180,0.25);
+  --blue:#2563eb;--teal:#0d9e72;--amber:#b45309;--red:#dc2626;
+  --green:#059669;
+  --text:#1e2433;--muted:#4a5568;--dim:#9aa3b2;
   --font-size:14px;--font-family:'IBM Plex Sans Hebrew',sans-serif;
-  --radius:8px;
+  --radius:8px;--shadow:0 1px 4px rgba(30,80,180,.08);
+}
+/* DARK MODE */
+[data-theme="dark"]{
+  --bg:#0f1117;--s1:#1a1d27;--s2:#21253a;--s3:#2a2f45;
+  --border:rgba(255,255,255,0.08);--border2:rgba(255,255,255,0.15);
+  --blue:#4f8ef7;--teal:#2dd4bf;--amber:#f59e0b;--red:#f87171;--green:#34d399;
+  --text:#e8eaf0;--muted:#8892a4;--dim:#4a5568;
+  --shadow:0 1px 4px rgba(0,0,0,.3);
 }
 /* DARK MODE */
 [data-theme="dark"]{
@@ -762,12 +771,12 @@ async function doLogin(){
 function routeByRole(md){
   const role=md.role||'worker';
   document.getElementById('loginScreen').style.display='none';
-  const ads=document.getElementById('adminDashScreen');
   if(role==='superadmin'){
-    if(!ads){const d=buildAdminDash(md.username);document.body.appendChild(d);}
+    let ads=document.getElementById('adminDashScreen');
+    if(!ads){ads=buildAdminDash(md.username);document.body.appendChild(ads);}
     document.getElementById('appScreen').classList.remove('vis');
     const ws=document.getElementById('workerScreen');if(ws)ws.classList.remove('vis');
-    document.getElementById('adminDashScreen').style.display='block';
+    ads.style.display='block';
     loadAdminDash();
   } else if(role==='manager'){
     if(ads)ads.style.display='none';
@@ -2789,8 +2798,9 @@ function buildAdminDash(username){
       </div>
       <!-- Tabs -->
       <div style="display:flex;gap:4px;margin-bottom:20px;background:var(--s2);border-radius:9px;padding:4px">
-        <button onclick="adminDashTab('companies')" id="adTab1" class="admin-dash-tab active-dash-tab" style="flex:1;padding:9px;border-radius:6px;border:none;background:var(--s3);font-size:13px;cursor:pointer;font-family:inherit;font-weight:600;color:var(--text)">🏢 חברות</button>
-        <button onclick="adminDashTab('users')" id="adTab2" class="admin-dash-tab" style="flex:1;padding:9px;border-radius:6px;border:none;background:none;font-size:13px;cursor:pointer;font-family:inherit;color:var(--muted)">👥 משתמשים</button>
+        <button onclick="adminDashTab('companies')" id="adTab1" style="flex:1;padding:9px;border-radius:6px;border:none;background:var(--s3);font-size:13px;cursor:pointer;font-family:inherit;font-weight:600;color:var(--text)">🏢 חברות</button>
+        <button onclick="adminDashTab('users')" id="adTab2" style="flex:1;padding:9px;border-radius:6px;border:none;background:none;font-size:13px;cursor:pointer;font-family:inherit;color:var(--muted)">👥 משתמשים</button>
+        <button onclick="adminDashTab('reports')" id="adTab3" style="flex:1;padding:9px;border-radius:6px;border:none;background:none;font-size:13px;cursor:pointer;font-family:inherit;color:var(--muted)">📊 דוחות</button>
       </div>
       <!-- Companies -->
       <div id="adTabCompanies">
@@ -2802,6 +2812,18 @@ function buildAdminDash(username){
           <div id="adCompTable"><div style="text-align:center;color:var(--muted);padding:20px">טוען...</div></div>
         </div>
       </div>
+      <!-- Reports -->
+      <div id="adTabReports" style="display:none">
+        <div style="background:var(--s1);border:1px solid var(--border);border-radius:12px;padding:18px;margin-bottom:14px">
+          <div style="font-size:14px;font-weight:600;margin-bottom:14px">📊 דוח חברות</div>
+          <div id="adReportContent"><div style="text-align:center;color:var(--muted);padding:20px">לחץ לטעינת דוח</div></div>
+          <div style="display:flex;gap:8px;margin-top:12px">
+            <button onclick="loadAdminReport()" style="background:var(--blue);color:#fff;border:none;border-radius:7px;padding:8px 16px;font-size:12px;cursor:pointer;font-family:inherit">🔄 רענן דוח</button>
+            <button onclick="exportAdminReport()" style="background:var(--s3);border:1px solid var(--border);border-radius:7px;padding:8px 16px;font-size:12px;cursor:pointer;font-family:inherit">📄 ייצוא CSV</button>
+          </div>
+        </div>
+      </div>
+
       <!-- Users -->
       <div id="adTabUsers" style="display:none">
         <div style="background:var(--s1);border:1px solid var(--border);border-radius:12px;padding:18px">
@@ -2817,17 +2839,20 @@ function buildAdminDash(username){
 }
 
 function adminDashTab(tab){
-  document.getElementById('adTabCompanies').style.display=tab==='companies'?'block':'none';
-  document.getElementById('adTabUsers').style.display=tab==='users'?'block':'none';
-  document.getElementById('adTab1').style.cssText='flex:1;padding:9px;border-radius:6px;border:none;font-size:13px;cursor:pointer;font-family:inherit;'+(tab==='companies'?'background:var(--s3);font-weight:600;color:var(--text)':'background:none;color:var(--muted)');
-  document.getElementById('adTab2').style.cssText='flex:1;padding:9px;border-radius:6px;border:none;font-size:13px;cursor:pointer;font-family:inherit;'+(tab==='users'?'background:var(--s3);font-weight:600;color:var(--text)':'background:none;color:var(--muted)');
+  ['companies','users','reports'].forEach(t=>{
+    const el=document.getElementById('adTab'+({companies:1,users:2,reports:3}[t]));
+    const content=document.getElementById('adTab'+t.charAt(0).toUpperCase()+t.slice(1));
+    if(el) el.style.cssText='flex:1;padding:9px;border-radius:6px;border:none;font-size:13px;cursor:pointer;font-family:inherit;'+(tab===t?'background:var(--s3);font-weight:600;color:var(--text)':'background:none;color:var(--muted)');
+    if(content) content.style.display=tab===t?'block':'none';
+  });
   if(tab==='users') loadAdminUsers();
+  if(tab==='reports') loadAdminReport();
 }
 
 let _adCompanies=[];
 async function loadAdminDash(){
   try{
-    const d=await fetch('/api/admin/stats').then(r=>r.json());
+    const d=await fetch('/api/admin/stats',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({})}).then(r=>r.json());
     document.getElementById('adStatC').textContent=d.activeCompanies||0;
     document.getElementById('adStatM').textContent=d.totalManagers||0;
     document.getElementById('adStatW').textContent=d.totalWorkers||0;
@@ -2838,7 +2863,7 @@ async function loadAdminDash(){
 
 async function loadAdminCompanies(){
   try{
-    const d=await fetch('/api/companies').then(r=>r.json());
+    const d=await fetch('/api/companies',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({})}).then(r=>r.json());
     _adCompanies=d.companies||[];
     const el=document.getElementById('adCompTable');
     if(!_adCompanies.length){el.innerHTML='<div style="text-align:center;color:var(--muted);padding:24px">אין חברות עדיין. הוסף חברה ראשונה!</div>';return;}
@@ -2866,7 +2891,7 @@ async function loadAdminCompanies(){
 
 async function loadAdminUsers(){
   try{
-    const d=await fetch('/api/users').then(r=>r.json());
+    const d=await fetch('/api/users').then(r=>r.json()).catch(()=>({users:[]}));
     const users=d.users||[];
     const cMap={};_adCompanies.forEach(c=>cMap[c.id]=c.name);
     const el=document.getElementById('adUsersTable');
@@ -2935,6 +2960,133 @@ async function submitAddManager(){
   const d=await fetch('/api/register',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({username:un,password:pw,is_admin:true,company_id:cid})}).then(r=>r.json());
   if(d.ok){msg.style.cssText='display:block;color:var(--teal)';msg.textContent='✓ מנהל נוצר';setTimeout(()=>{closeAddManagerModal();loadAdminDash();},1000);}
   else{msg.style.cssText='display:block;color:var(--red)';msg.textContent=d.error||'שגיאה';}
+}
+
+
+// ══════════════════════════════════════════════════════
+//  SAFE REFRESH — keeps session
+// ══════════════════════════════════════════════════════
+async function safeRefresh(){
+  try{
+    const d = await fetch('/api/me').then(r=>r.json());
+    if(d.authed){
+      currentIsAdmin=d.isAdmin||false;
+      routeByRole(d);
+      showToast('✓ רוענן');
+    } else {
+      doLogout();
+    }
+  } catch(e){ showToast('שגיאת תקשורת'); }
+}
+
+// ══════════════════════════════════════════════════════
+//  ADMIN SETTINGS
+// ══════════════════════════════════════════════════════
+function openAdminSettings(){
+  // Sync font label
+  const root = document.documentElement;
+  const current = parseInt(getComputedStyle(root).getPropertyValue('--font-size'))||14;
+  const lbl = document.getElementById('adminFontLabel');
+  if(lbl) lbl.textContent = current+'px';
+  document.getElementById('adminSettingsOverlay').classList.add('open');
+}
+function closeAdminSettings(){
+  document.getElementById('adminSettingsOverlay').classList.remove('open');
+}
+
+// ══════════════════════════════════════════════════════
+//  ADMIN REPORTS
+// ══════════════════════════════════════════════════════
+async function loadAdminReport(){
+  const el = document.getElementById('adReportContent');
+  if(!el) return;
+  el.innerHTML = '<div style="text-align:center;color:var(--muted);padding:16px">טוען...</div>';
+  try {
+    const [statsR, compR] = await Promise.all([
+      fetch('/api/admin/stats',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({})}).then(r=>r.json()),
+      fetch('/api/companies',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({})}).then(r=>r.json())
+    ]);
+    const companies = compR.companies||[];
+    const planLabel = {trial:'Trial',pro:'Pro',enterprise:'Enterprise'};
+    el.innerHTML = `
+      <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-bottom:16px">
+        <div style="background:var(--s2);border:1px solid var(--border);border-radius:8px;padding:12px;text-align:center">
+          <div style="font-size:24px;font-weight:700;color:var(--blue)">${statsR.activeCompanies||0}</div>
+          <div style="font-size:11px;color:var(--muted)">חברות פעילות</div>
+        </div>
+        <div style="background:var(--s2);border:1px solid var(--border);border-radius:8px;padding:12px;text-align:center">
+          <div style="font-size:24px;font-weight:700;color:var(--teal)">${statsR.totalManagers||0}</div>
+          <div style="font-size:11px;color:var(--muted)">מנהלים</div>
+        </div>
+        <div style="background:var(--s2);border:1px solid var(--border);border-radius:8px;padding:12px;text-align:center">
+          <div style="font-size:24px;font-weight:700;color:var(--amber)">${statsR.totalWorkers||0}</div>
+          <div style="font-size:11px;color:var(--muted)">עובדים</div>
+        </div>
+      </div>
+      <table style="width:100%;border-collapse:collapse;font-size:12px">
+        <thead><tr style="background:var(--s2);border-bottom:2px solid var(--border)">
+          <th style="padding:8px 12px;text-align:right">חברה</th>
+          <th style="padding:8px;text-align:center">תוכנית</th>
+          <th style="padding:8px;text-align:center">סטטוס</th>
+          <th style="padding:8px;text-align:center">נוצרה</th>
+        </tr></thead>
+        <tbody>
+          ${companies.map(c=>`<tr style="border-bottom:1px solid var(--border)">
+            <td style="padding:9px 12px;font-weight:500">${c.name}</td>
+            <td style="padding:9px;text-align:center;font-size:11px">${planLabel[c.plan]||c.plan}</td>
+            <td style="padding:9px;text-align:center"><span style="font-size:11px;padding:2px 8px;border-radius:10px;${c.active?'background:rgba(5,150,105,.1);color:var(--green)':'background:rgba(220,38,38,.1);color:var(--red)'}">${c.active?'פעיל':'מושבת'}</span></td>
+            <td style="padding:9px;text-align:center;color:var(--muted);font-size:11px">${(c.created||'').slice(0,10)}</td>
+          </tr>`).join('')}
+        </tbody>
+      </table>`;
+  } catch(e) {
+    el.innerHTML = '<div style="color:var(--red);padding:16px">שגיאה בטעינת דוח</div>';
+  }
+}
+
+function exportAdminReport(){
+  const rows = [['חברה','תוכנית','סטטוס','תאריך']];
+  (_adCompanies||[]).forEach(c=>{
+    rows.push([c.name, c.plan, c.active?'פעיל':'מושבת', (c.created||'').slice(0,10)]);
+  });
+  const csv = rows.map(r=>r.map(v=>'"'+v+'"').join(',')).join('\r\n');
+  const a=document.createElement('a');
+  a.href=URL.createObjectURL(new Blob(['\uFEFF'+csv],{type:'text/csv;charset=utf-8'}));
+  a.download='companies-report.csv';
+  a.click();
+}
+
+// ══════════════════════════════════════════════════════
+//  ADMIN DASHBOARD TAB — add reports tab support
+// ══════════════════════════════════════════════════════
+
+
+// Edit company
+function editCompany(id, name, plan){
+  document.getElementById('editCompId').value=id;
+  document.getElementById('editCompName').value=name;
+  document.getElementById('editCompPlan').value=plan||'trial';
+  document.getElementById('editCompMsg').style.display='none';
+  document.getElementById('editCompanyOverlay').classList.add('open');
+}
+function closeEditCompany(){document.getElementById('editCompanyOverlay').classList.remove('open');}
+async function submitEditCompany(){
+  const id=document.getElementById('editCompId').value;
+  const name=document.getElementById('editCompName').value.trim();
+  const plan=document.getElementById('editCompPlan').value;
+  const msg=document.getElementById('editCompMsg');
+  if(!name){msg.style.cssText='display:block;color:var(--red)';msg.textContent='שם נדרש';return;}
+  const d=await fetch('/api/companies/update',{method:'POST',headers:{'Content-Type':'application/json'},
+    body:JSON.stringify({id:parseInt(id),name,plan})}).then(r=>r.json());
+  if(d.ok){msg.style.cssText='display:block;color:var(--green);background:rgba(5,150,105,.08)';msg.textContent='✓ עודכן';
+    setTimeout(()=>{closeEditCompany();loadAdminCompanies();},1000);}
+  else{msg.style.cssText='display:block;color:var(--red)';msg.textContent=d.error||'שגיאה';}
+}
+
+async function toggleCompanyActive(id, currentActive){
+  await fetch('/api/companies/toggle',{method:'POST',headers:{'Content-Type':'application/json'},
+    body:JSON.stringify({company_id:id})}).then(r=>r.json());
+  loadAdminCompanies(); loadAdminStats();
 }
 
 </script>
@@ -3238,6 +3390,73 @@ async function submitAddManager(){
     <div class="mactions">
       <button class="btn-cancel" onclick="closeAddManagerModal()">ביטול</button>
       <button class="btn-save" onclick="submitAddManager()">צור מנהל</button>
+    </div>
+  </div>
+</div>
+
+
+<!-- ADMIN SETTINGS -->
+<div class="overlay" id="adminSettingsOverlay">
+  <div class="modal" style="width:400px">
+    <div class="modal-title">⚙️ הגדרות תצוגה</div>
+    <div class="frow">
+      <label class="flabel">מצב תצוגה</label>
+      <div style="display:flex;gap:8px;margin-top:6px">
+        <button onclick="setTheme('light')" style="flex:1;background:var(--s3);border:1px solid var(--border2);border-radius:7px;padding:9px;cursor:pointer;font-size:13px;font-family:inherit">☀️ בהיר</button>
+        <button onclick="setTheme('dark')" style="flex:1;background:var(--s3);border:1px solid var(--border2);border-radius:7px;padding:9px;cursor:pointer;font-size:13px;font-family:inherit">🌙 כהה</button>
+      </div>
+    </div>
+    <div class="frow">
+      <label class="flabel">גודל טקסט</label>
+      <div style="display:flex;align-items:center;gap:12px;margin-top:6px">
+        <button onclick="changeFontSize(-1)" style="background:var(--s3);border:1px solid var(--border2);border-radius:6px;padding:5px 16px;cursor:pointer;font-size:18px;font-family:inherit">−</button>
+        <span id="adminFontLabel" style="font-family:monospace;min-width:40px;text-align:center">14px</span>
+        <button onclick="changeFontSize(+1)" style="background:var(--s3);border:1px solid var(--border2);border-radius:6px;padding:5px 16px;cursor:pointer;font-size:18px;font-family:inherit">+</button>
+      </div>
+    </div>
+    <div class="frow">
+      <label class="flabel">גופן</label>
+      <div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:6px">
+        <button onclick="setFontFamily('IBM Plex Sans Hebrew,sans-serif')" style="background:var(--s3);border:1px solid var(--border2);border-radius:6px;padding:6px 12px;cursor:pointer;font-size:12px;font-family:IBM Plex Sans Hebrew,sans-serif">IBM Plex</button>
+        <button onclick="setFontFamily('Arial,sans-serif')" style="background:var(--s3);border:1px solid var(--border2);border-radius:6px;padding:6px 12px;cursor:pointer;font-size:12px;font-family:Arial">Arial</button>
+        <button onclick="setFontFamily('Segoe UI,sans-serif')" style="background:var(--s3);border:1px solid var(--border2);border-radius:6px;padding:6px 12px;cursor:pointer;font-size:12px;font-family:Segoe UI">Segoe UI</button>
+        <button onclick="setFontFamily('Tahoma,sans-serif')" style="background:var(--s3);border:1px solid var(--border2);border-radius:6px;padding:6px 12px;cursor:pointer;font-size:12px;font-family:Tahoma">Tahoma</button>
+      </div>
+    </div>
+    <div class="frow">
+      <label class="flabel">צבע מבטא</label>
+      <div style="display:flex;gap:8px;margin-top:6px">
+        <button onclick="setAccentColor('#2563eb','rgba(37,99,235,.12)','rgba(37,99,235,.28)')" style="width:28px;height:28px;border-radius:50%;background:#2563eb;border:2px solid #fff;cursor:pointer"></button>
+        <button onclick="setAccentColor('#0d9e72','rgba(13,158,114,.12)','rgba(13,158,114,.28)')" style="width:28px;height:28px;border-radius:50%;background:#0d9e72;border:2px solid #fff;cursor:pointer"></button>
+        <button onclick="setAccentColor('#7c3aed','rgba(124,58,237,.12)','rgba(124,58,237,.28)')" style="width:28px;height:28px;border-radius:50%;background:#7c3aed;border:2px solid #fff;cursor:pointer"></button>
+        <button onclick="setAccentColor('#b45309','rgba(180,83,9,.12)','rgba(180,83,9,.28)')" style="width:28px;height:28px;border-radius:50%;background:#b45309;border:2px solid #fff;cursor:pointer"></button>
+        <button onclick="setAccentColor('#dc2626','rgba(220,38,38,.12)','rgba(220,38,38,.28)')" style="width:28px;height:28px;border-radius:50%;background:#dc2626;border:2px solid #fff;cursor:pointer"></button>
+      </div>
+    </div>
+    <div class="mactions">
+      <button class="btn-cancel" onclick="closeAdminSettings()">סגור</button>
+    </div>
+  </div>
+</div>
+
+
+<!-- EDIT COMPANY -->
+<div class="overlay" id="editCompanyOverlay">
+  <div class="modal" style="width:400px">
+    <div class="modal-title">✏️ עריכת חברה</div>
+    <input type="hidden" id="editCompId">
+    <div class="frow"><label class="flabel">שם החברה</label><input class="finput" id="editCompName" style="margin-top:4px"></div>
+    <div class="frow"><label class="flabel">תוכנית</label>
+      <select class="finput" id="editCompPlan" style="margin-top:4px">
+        <option value="trial">Trial</option>
+        <option value="pro">Pro</option>
+        <option value="enterprise">Enterprise</option>
+      </select>
+    </div>
+    <div id="editCompMsg" style="display:none;font-size:12px;margin-top:6px;padding:7px 10px;border-radius:6px"></div>
+    <div class="mactions">
+      <button class="btn-cancel" onclick="closeEditCompany()">ביטול</button>
+      <button class="btn-save" onclick="submitEditCompany()">שמור שינויים</button>
     </div>
   </div>
 </div>

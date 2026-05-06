@@ -508,7 +508,7 @@ class Handler(http.server.BaseHTTPRequestHandler):
                     body_out = json.dumps({'ok': True}).encode()
                     self.send_response(200)
                     self.send_header('Content-Type', 'application/json')
-                    self.send_header('Set-Cookie', f'noc_session={t}; HttpOnly; Path=/; Max-Age={SESSION_TTL}')
+                    self.send_header('Set-Cookie', f'noc_session={t}; HttpOnly; Path=/; Max-Age={SESSION_TTL}; SameSite=Lax')
                     self.send_header('Content-Length', len(body_out))
                     self.end_headers()
                     self.wfile.write(body_out)
@@ -527,7 +527,7 @@ class Handler(http.server.BaseHTTPRequestHandler):
                     body_out = json.dumps({'ok': True}).encode()
                     self.send_response(200)
                     self.send_header('Content-Type', 'application/json')
-                    self.send_header('Set-Cookie', f'noc_session={t}; HttpOnly; Path=/; Max-Age={SESSION_TTL}')
+                    self.send_header('Set-Cookie', f'noc_session={t}; HttpOnly; Path=/; Max-Age={SESSION_TTL}; SameSite=Lax')
                     self.send_header('Content-Length', len(body_out))
                     self.end_headers()
                     self.wfile.write(body_out)
@@ -810,6 +810,31 @@ class Handler(http.server.BaseHTTPRequestHandler):
                 tm = fetchone(db, "SELECT COUNT(*) as n FROM users WHERE is_admin=1 AND username!=?", (ADMIN_USERNAME,))['n']
                 tw = fetchone(db, "SELECT COUNT(*) as n FROM users WHERE is_admin=0 AND username!=?", (ADMIN_USERNAME,))['n']
                 return self.send_json(200, {'totalCompanies': tc, 'activeCompanies': ac, 'totalManagers': tm, 'totalWorkers': tw, 'totalUsers': tm+tw})
+
+        if path == '/api/companies/update':
+            if not user_id: return self.send_json(401, {'error': 'לא מחובר'})
+            with get_db() as db:
+                row = fetchone(db, "SELECT username FROM users WHERE id=?", (user_id,))
+                if not row or row['username'] != ADMIN_USERNAME:
+                    return self.send_json(403, {'error': 'אין הרשאה'})
+                cid = payload.get('id')
+                name = payload.get('name','').strip()
+                plan = payload.get('plan','trial')
+                if not name: return self.send_json(400, {'error': 'שם נדרש'})
+                execute(db, "UPDATE companies SET name=?, plan=? WHERE id=?", (name, plan, cid))
+            return self.send_json(200, {'ok': True})
+
+        if path == '/api/companies/toggle':
+            if not user_id: return self.send_json(401, {'error': 'לא מחובר'})
+            with get_db() as db:
+                row = fetchone(db, "SELECT username FROM users WHERE id=?", (user_id,))
+                if not row or row['username'] != ADMIN_USERNAME:
+                    return self.send_json(403, {'error': 'אין הרשאה'})
+                cid = payload.get('company_id')
+                comp = fetchone(db, "SELECT active FROM companies WHERE id=?", (cid,))
+                if not comp: return self.send_json(404, {'error': 'לא נמצאה'})
+                execute(db, "UPDATE companies SET active=? WHERE id=?", (0 if comp['active'] else 1, cid))
+            return self.send_json(200, {'ok': True})
 
         self.send_json(404, {'error': 'Not found'})
 
