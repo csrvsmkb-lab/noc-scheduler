@@ -15,6 +15,9 @@
   --font-size: 14px;
 }
 body { font-size: var(--font-size); }
+body, button, input, textarea, select, th, td, .pill, .wname, .wrole, .stat-lbl, .flabel, .finput { font-size: var(--font-size) !important; }
+.stat-val { font-size: calc(var(--font-size) * 1.6) !important; }
+.page-title { font-size: calc(var(--font-size) * 1.43) !important; }
 body{background:var(--bg);color:var(--text);font-family:'IBM Plex Sans Hebrew',sans-serif;font-size:14px;line-height:1.6;min-height:100vh}
 
 /* LOGIN */
@@ -246,6 +249,7 @@ table.sgrid td.nc{text-align:right;font-weight:500;background:var(--s2);color:va
         <div class="page-sub">הגדר עובדים ואילוצים, לאחר מכן לחץ על בניית לוח</div>
       </div>
       <div style="display:flex;gap:8px;align-items:center">
+        <button onclick="openWeeklyReport()" style="background:rgba(13,158,114,.1);border:1px solid rgba(13,158,114,.3);color:var(--teal);border-radius:8px;padding:9px 14px;font-size:13px;cursor:pointer;font-family:inherit">📊 דוח שבועי</button>
         <button id="adminBtn" onclick="openAdminPanel()" style="display:none;background:rgba(26,110,245,.1);border:1px solid var(--border2);color:var(--blue);border-radius:8px;padding:9px 16px;font-size:13px;cursor:pointer;font-family:inherit;align-items:center;gap:6px">👑 ניהול משתמשים</button>
         <button onclick="openCustomize()" style="background:rgba(13,158,114,.1);border:1px solid rgba(13,158,114,.3);color:var(--teal);border-radius:8px;padding:9px 14px;font-size:13px;cursor:pointer;font-family:inherit" title="התאמה אישית">⚙️</button>
         <button class="gen-btn" id="genBtn" onclick="buildSchedule()">
@@ -464,6 +468,8 @@ function getShiftLabel(name){ return name.slice(0,4); }
 
 let currentIsAdmin = false;
 let lastRejectionLog = {};
+let dayNotes = {};
+let shiftNotesCache = {};
 
 // ═══════════════════════════════════════════════════════
 //  STATE
@@ -965,7 +971,18 @@ function renderSchedule(result, fromCache){
   }
   html+='</tr><tr><th class="nc" style="font-size:10px;color:var(--dim)">משמרות</th>';
   for(const d of DAYS) for(const sh of getShiftNames()){ const isLast=sh===getShiftNames()[getShiftNames().length-1]; html+=`<th style="${isLast?'border-right:1px solid var(--border)':''}">${getShiftLabel(sh)}</th>`; }
-  html+='</tr></thead><tbody>';
+  html+='</tr>';
+  html+='<tr style="background:rgba(13,158,114,.04)"><td class="nc" style="font-size:10px;color:var(--muted);padding:4px 12px">📝 הערת יום</td>';
+  for(let di=0;di<DAYS.length;di++){
+    const d=DAYS[di];
+    const dn=dayNotes['day__'+d]||'';
+    const isLast=di===DAYS.length-1;
+    html+=`<td colspan="${getShiftNames().length}" style="padding:3px 6px;${isLast?'border-right:1px solid var(--border)':''};border-left:1px solid var(--border)">`;
+    html+=`<div onclick="openDayNote('${d}')" style="min-height:20px;cursor:pointer;font-size:11px;color:${dn?'var(--text)':'var(--dim)'};padding:2px 4px;border-radius:4px" onmouseover="this.style.background='var(--s3)'" onmouseout="this.style.background=''" title="לחץ להוספת הערת יום">${dn||'+ הוסף הערה'}</div>`;
+    html+='</td>';
+  }
+  html+='</tr>';
+  html+='</thead><tbody>';
 
   // Show absent workers with greyed out row
   const allWorkers = [...workers.filter(w=>!(w.status==='vacation'||w.status==='sick')),
@@ -976,9 +993,9 @@ function renderSchedule(result, fromCache){
     const isAbsent=fullAbsent;
     const absentLabel=w.absenceType==='vacation'?'🏖️':w.absenceType==='sick'?'🤒':'';
     html+=`<tr style="${isAbsent?'opacity:0.45;background:var(--s2)':''}"><td class="nc">
-      <div style="display:flex;align-items:center;gap:8px">
-        <div style="width:26px;height:26px;border-radius:50%;background:var(--s3);border:1px solid var(--border2);display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:600;flex-shrink:0;color:var(--blue)">${w.name[0]}</div>
-        <div><div style="font-size:13px">${w.name}${isAbsent?` <span style="font-size:10px">${absentLabel}</span>`:''}</div><div style="font-size:10px;color:var(--muted)">${isAbsent?absentLabel:`${ws.total_shifts||0} משמ׳`}</div></div>
+      <div style="display:flex;align-items:center;gap:8px;cursor:pointer" onclick="openWorkerStats('${w.name.replace(/'/g,"\'")}')">
+        <div style="width:26px;height:26px;border-radius:50%;background:linear-gradient(135deg,var(--blue),var(--teal));display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:700;flex-shrink:0;color:#fff">${w.name[0]}</div>
+        <div><div style="font-size:13px;color:var(--blue)">${w.name}${isAbsent?` <span style="font-size:10px">${absentLabel}</span>`:''}</div><div style="font-size:10px;color:var(--muted)">${isAbsent?absentLabel:`${ws.total_shifts||0} משמ׳ 📊`}</div></div>
       </div></td>`;
     for(const d of DAYS) for(const sh of getShiftNames()){
       const assigned=schedule[d]?.[sh]?.includes(w.name);
@@ -1000,7 +1017,9 @@ function renderSchedule(result, fromCache){
       // Build badge icons for cell
       const cellBadge=[isBday?'🎂':'',isOfficeOut?'🏃':'',isTraining?'📚':''].filter(Boolean).join('');
       const cellBg=isBday?'rgba(255,180,0,.08)':isOfficeOut?'rgba(56,139,253,.06)':isTraining?'rgba(57,208,160,.06)':'';
-      if(assigned) html+=`<td style="${br}${cellBg?`;background:${cellBg}`:''}" title="${tip}"><span class="pill p${getShiftCode(sh)}">${sh==='בוקר'?'ב':sh==='צהריים'?'צ':'ל'}</span>${cellBadge?`<span style="font-size:9px;display:block;text-align:center;margin-top:-2px">${cellBadge}</span>`:''}</td>`;
+      const snKey=w.name+'__'+d+'__'+sh;
+      const hasShiftNote=!!shiftNotesCache[snKey];
+      if(assigned) html+=`<td style="${br}${cellBg?`;background:${cellBg}`:''}cursor:pointer" onclick="openShiftNote('${w.name.replace(/'/g,"\'")}','${d}','${sh}')" title="${tip||'לחץ להוספת הערה'}"><span class="pill p${getShiftCode(sh)}">${sh==='בוקר'?'ב':sh==='צהריים'?'צ':'ל'}</span><span style="font-size:9px;display:block;text-align:center;margin-top:-2px">${hasShiftNote?'💬':cellBadge}</span></td>`;
       else if(isDayAbsent) html+=`<td style="background:rgba(240,167,66,.07);${br}" title="${w.absenceType==='vacation'?'חופש':'מחלה'}"><span style="font-size:12px">${absIcon}</span></td>`;
       else if(isOfficeOut&&!blocked) html+=`<td style="background:rgba(56,139,253,.06);${br}" title="🏃 מחוץ למשרד"><span style="font-size:12px">🏃</span></td>`;
       else if(isTraining&&!blocked) html+=`<td style="background:rgba(57,208,160,.06);${br}" title="📚 הדרכה/חפיפה"><span style="font-size:12px">📚</span></td>`;
@@ -1213,7 +1232,7 @@ document.getElementById('customizeOverlay').addEventListener('click',e=>{if(e.ta
 function changeFontSize(delta){
   const root=document.documentElement;
   const current=parseInt(getComputedStyle(root).getPropertyValue('--font-size').trim())||14;
-  const next=Math.max(11,Math.min(20,current+delta));
+  const next=Math.max(11,Math.min(26,current+delta));
   root.style.setProperty('--font-size',next+'px');
   document.getElementById('fontSizeLabel').textContent=next+'px';
 }
@@ -1451,6 +1470,7 @@ initWeekDate();
       currentIsAdmin = d.isAdmin||false;
       showApp(d.username);
       await loadState();
+      await loadNotes();
     }
   } catch(e){}
 })();
@@ -1458,7 +1478,6 @@ initWeekDate();
 // ═══════════════════════════════════════════════════════
 //  FORCE ASSIGN
 // ═══════════════════════════════════════════════════════
-let lastRejectionLog = {};
 let _forceDay='', _forceShift='';
 
 function openForceAssign(){
@@ -1587,6 +1606,155 @@ function showToast(msg){
   setTimeout(()=>t.style.opacity='0',2500);
 }
 
+
+// ═══════════════════════════════════════════════════════
+//  DAY NOTES
+// ═══════════════════════════════════════════════════════
+function openDayNote(day){
+  document.getElementById('dayNoteTitle').textContent='📝 הערת יום — '+day;
+  document.getElementById('dayNoteText').value=dayNotes['day__'+day]||'';
+  document.getElementById('dayNoteOverlay').dataset.day=day;
+  document.getElementById('dayNoteOverlay').classList.add('open');
+  setTimeout(()=>document.getElementById('dayNoteText').focus(),80);
+}
+function closeDayNote(){ document.getElementById('dayNoteOverlay').classList.remove('open'); }
+async function saveDayNote(){
+  const day=document.getElementById('dayNoteOverlay').dataset.day;
+  const note=document.getElementById('dayNoteText').value.trim();
+  const key='day__'+day;
+  if(note) dayNotes[key]=note; else delete dayNotes[key];
+  closeDayNote();
+  try {
+    const weekStart=document.getElementById('weekStartDate')?.value||'';
+    await fetch('/api/notes/save',{method:'POST',headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({weekStart, day:'__dayNote__'+day, shift:'day', note})});
+  } catch(e){}
+  if(lastSchedule) renderSchedule({schedule:lastSchedule,stats:lastStats,violations:[],notes:null,rejectionLog:lastRejectionLog},true);
+}
+
+// ═══════════════════════════════════════════════════════
+//  SHIFT NOTES
+// ═══════════════════════════════════════════════════════
+let _snWorker='',_snDay='',_snShift='';
+function openShiftNote(worker,day,shift){
+  _snWorker=worker;_snDay=day;_snShift=shift;
+  const key=worker+'__'+day+'__'+shift;
+  document.getElementById('shiftNoteTitle').textContent=`💬 הערה — ${worker} | ${day} | ${shift}`;
+  document.getElementById('shiftNoteText').value=shiftNotesCache[key]||'';
+  document.getElementById('shiftNoteOverlay').classList.add('open');
+  setTimeout(()=>document.getElementById('shiftNoteText').focus(),80);
+}
+function closeShiftNote(){ document.getElementById('shiftNoteOverlay').classList.remove('open'); }
+async function saveShiftNote(){
+  const note=document.getElementById('shiftNoteText').value.trim();
+  const key=_snWorker+'__'+_snDay+'__'+_snShift;
+  if(note) shiftNotesCache[key]=note; else delete shiftNotesCache[key];
+  closeShiftNote();
+  try {
+    const weekStart=document.getElementById('weekStartDate')?.value||'';
+    await fetch('/api/notes/save',{method:'POST',headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({weekStart, day:_snWorker+'|'+_snDay, shift:_snShift, note})});
+  } catch(e){}
+  if(lastSchedule) renderSchedule({schedule:lastSchedule,stats:lastStats,violations:[],notes:null,rejectionLog:lastRejectionLog},true);
+}
+
+async function loadNotes(){
+  try {
+    const weekStart=document.getElementById('weekStartDate')?.value||'';
+    const r=await fetch('/api/notes/load',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({weekStart})});
+    const d=await r.json();
+    dayNotes={}; shiftNotesCache={};
+    if(d.notes){
+      Object.entries(d.notes).forEach(([k,v])=>{
+        if(k.startsWith('__dayNote__')) dayNotes['day__'+k.replace('__dayNote__','')]=v;
+        else shiftNotesCache[k]=v;
+      });
+    }
+  } catch(e){}
+}
+
+// ═══════════════════════════════════════════════════════
+//  WORKER STATS
+// ═══════════════════════════════════════════════════════
+function openWorkerStats(workerName){
+  const w=workers.find(x=>x.name===workerName); if(!w) return;
+  const ws=(lastStats||{})[workerName]||{};
+  const schedule=lastSchedule||{};
+  const shiftCounts={};
+  getShiftNames().forEach(sh=>{shiftCounts[sh]=0;});
+  DAYS.forEach(day=>getShiftNames().forEach(sh=>{if((schedule[day]?.[sh]||[]).includes(workerName))shiftCounts[sh]++;}));
+  const dayBreakdown=DAYS.map(day=>{const sh=getShiftNames().find(s=>(schedule[day]?.[s]||[]).includes(workerName));return{day,shift:sh||null};});
+  const myNotes=Object.entries(shiftNotesCache).filter(([k])=>k.startsWith(workerName+'__')).map(([k,v])=>{const p=k.split('__');return{day:p[1],shift:p[2],note:v};});
+  const colors=['var(--blue)','var(--teal)','var(--amber)'];
+  const totalShifts=ws.total_shifts||0;
+  document.getElementById('workerStatsContent').innerHTML=`
+    <div style="display:flex;align-items:center;gap:14px;margin-bottom:18px;padding-bottom:14px;border-bottom:1px solid var(--border)">
+      <div style="width:48px;height:48px;border-radius:50%;background:linear-gradient(135deg,var(--blue),var(--teal));display:flex;align-items:center;justify-content:center;font-size:20px;font-weight:700;color:#fff">${w.name[0]}</div>
+      <div><div style="font-size:16px;font-weight:600">${w.name}</div><div style="font-size:12px;color:var(--muted)">${w.role||''}</div></div>
+    </div>
+    <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-bottom:16px">
+      ${[['סה״כ',totalShifts,'var(--blue)'],['לילות',ws.nights||0,'var(--amber)'],['חול',ws.weekdays||0,'var(--teal)'],['סופ״ש',ws.weekend||0,'var(--muted)']].map(([l,v,c])=>`<div style="background:var(--s2);border:1px solid var(--border);border-radius:8px;padding:10px;text-align:center"><div style="font-size:20px;font-weight:700;font-family:monospace;color:${c}">${v}</div><div style="font-size:10px;color:var(--muted)">${l}</div></div>`).join('')}
+    </div>
+    ${getShiftNames().map((sh,i)=>{const cnt=shiftCounts[sh]||0;const pct=totalShifts>0?Math.round(cnt/totalShifts*100):0;return`<div style="margin-bottom:7px"><div style="display:flex;justify-content:space-between;font-size:12px;margin-bottom:3px"><span>${sh}</span><span style="font-family:monospace;color:${colors[i%3]}">${cnt} (${pct}%)</span></div><div style="height:6px;border-radius:3px;background:var(--s3)"><div style="height:100%;border-radius:3px;background:${colors[i%3]};width:${pct}%"></div></div></div>`;}).join('')}
+    <div style="display:flex;gap:4px;flex-wrap:wrap;margin:12px 0 4px">
+      ${dayBreakdown.map(({day,shift})=>{const isDayAbsent=(w.absenceDays||[]).includes(day);const isBlocked=w.blockedDays.includes(day);const bg=isDayAbsent?'rgba(240,167,66,.15)':isBlocked?'rgba(214,48,48,.08)':shift?'rgba(26,110,245,.12)':'var(--s3)';const color=isDayAbsent?'var(--amber)':isBlocked?'var(--red)':shift?'var(--blue)':'var(--muted)';const label=isDayAbsent?(w.absenceType==='vacation'?'🏖️':'🤒'):isBlocked?'✗':shift?shift.slice(0,2):'—';return`<div style="text-align:center;min-width:38px"><div style="font-size:9px;color:var(--muted);margin-bottom:2px">${day.slice(0,2)}</div><div style="background:${bg};color:${color};border-radius:6px;padding:4px;font-size:11px;font-weight:600">${label}</div></div>`;}).join('')}
+    </div>
+    ${w.notes?`<div style="font-size:12px;background:var(--s2);border:1px solid var(--border);border-radius:7px;padding:8px 12px;margin-top:8px">📝 ${w.notes}</div>`:''}
+    ${myNotes.length?`<div style="margin-top:12px;font-size:11px;font-weight:600;color:var(--muted);margin-bottom:5px">💬 הערות (${myNotes.length})</div>${myNotes.map(n=>`<div style="background:var(--s2);border:1px solid var(--border);border-radius:7px;padding:6px 12px;margin-bottom:4px;font-size:12px"><span style="color:var(--muted)">${n.day} ${n.shift}:</span> ${n.note}</div>`).join('')}`:''}
+    <div style="margin-top:14px;padding-top:12px;border-top:1px solid var(--border)">
+      <button onclick="closeWorkerStats();openWeeklyReport('${workerName.replace(/'/g,"\'")}')" style="background:var(--s3);border:1px solid var(--border2);border-radius:7px;padding:7px 14px;cursor:pointer;font-size:12px;font-family:inherit;color:var(--blue)">📊 דוח צבירה שבועי</button>
+    </div>`;
+  document.getElementById('workerStatsTitle').textContent='📊 '+workerName;
+  document.getElementById('workerStatsOverlay').classList.add('open');
+}
+function closeWorkerStats(){ document.getElementById('workerStatsOverlay').classList.remove('open'); }
+
+// ═══════════════════════════════════════════════════════
+//  WEEKLY CUMULATIVE REPORT
+// ═══════════════════════════════════════════════════════
+let weeklyHistory={};
+function openWeeklyReport(filterWorker=''){
+  try{weeklyHistory=JSON.parse(localStorage.getItem('noc_weekly_history')||'{}');}catch(e){}
+  const weekStart=document.getElementById('weekStartDate')?.value||'';
+  if(weekStart&&lastStats&&Object.keys(lastStats).length){
+    if(!weeklyHistory[weekStart])weeklyHistory[weekStart]={};
+    Object.entries(lastStats).forEach(([name,s])=>{weeklyHistory[weekStart][name]=s;});
+    localStorage.setItem('noc_weekly_history',JSON.stringify(weeklyHistory));
+  }
+  const weeks=Object.keys(weeklyHistory).sort();
+  if(!weeks.length){alert('אין נתונים היסטוריים עדיין. בנה לוח שבועי תחילה.');return;}
+  const allNames=[...new Set(weeks.flatMap(w=>Object.keys(weeklyHistory[w])))].sort();
+  const filtered=filterWorker?[filterWorker]:allNames;
+  const totals={};
+  filtered.forEach(name=>{
+    totals[name]={total:0,nights:0,weekdays:0,weekend:0,weeks:0};
+    weeks.forEach(w=>{const s=weeklyHistory[w][name];if(s){totals[name].total+=s.total_shifts||0;totals[name].nights+=s.nights||0;totals[name].weekdays+=s.weekdays||0;totals[name].weekend+=s.weekend||0;totals[name].weeks++;}});
+  });
+  const hdr='<tr style="background:var(--s2);border-bottom:2px solid var(--border)"><th style="padding:8px 12px;text-align:right">עובד</th><th style="padding:8px;text-align:center">סה״כ</th><th style="padding:8px;text-align:center">לילות</th><th style="padding:8px;text-align:center">חול</th><th style="padding:8px;text-align:center">סופ״ש</th><th style="padding:8px;text-align:center">שבועות</th><th style="padding:8px;text-align:center">ממוצע</th></tr>';
+  const rows=filtered.map(name=>{const t=totals[name];const avg=t.weeks?Math.round(t.total/t.weeks*10)/10:0;return`<tr style="border-bottom:1px solid var(--border)"><td style="padding:8px 12px;font-weight:500">${name}</td><td style="padding:8px;text-align:center;font-family:monospace;color:var(--blue)">${t.total}</td><td style="padding:8px;text-align:center;font-family:monospace;color:var(--amber)">${t.nights}</td><td style="padding:8px;text-align:center;font-family:monospace;color:var(--teal)">${t.weekdays}</td><td style="padding:8px;text-align:center;font-family:monospace;color:var(--muted)">${t.weekend}</td><td style="padding:8px;text-align:center;font-family:monospace">${t.weeks}</td><td style="padding:8px;text-align:center;font-family:monospace;color:var(--muted)">${avg}</td></tr>`;}).join('');
+  document.getElementById('weeklyReportTitle').textContent=filterWorker?`📊 דוח — ${filterWorker}`:'📊 דוח צבירה שבועי';
+  document.getElementById('weeklyReportContent').innerHTML=`<div style="overflow-x:auto"><table style="width:100%;border-collapse:collapse;font-size:13px"><thead>${hdr}</thead><tbody>${rows}</tbody></table></div>`;
+  document.getElementById('weeklyReportOverlay').classList.add('open');
+}
+function closeWeeklyReport(){document.getElementById('weeklyReportOverlay').classList.remove('open');}
+function exportWeeklyCSV(){
+  try{weeklyHistory=JSON.parse(localStorage.getItem('noc_weekly_history')||'{}');}catch(e){}
+  const weeks=Object.keys(weeklyHistory).sort();
+  const allNames=[...new Set(weeks.flatMap(w=>Object.keys(weeklyHistory[w])))].sort();
+  const rows=[['שבוע','עובד','סה״כ','לילות','חול','סופ״ש']];
+  weeks.forEach(w=>allNames.forEach(name=>{const s=weeklyHistory[w][name];if(s)rows.push([w,name,s.total_shifts||0,s.nights||0,s.weekdays||0,s.weekend||0]);}));
+  const csv=rows.map(r=>r.map(c=>'"'+c+'"').join(',')).join('\r\n');
+  const a=document.createElement('a');a.href=URL.createObjectURL(new Blob(['\uFEFF'+csv],{type:'text/csv;charset=utf-8'}));a.download='weekly-report.csv';a.click();
+}
+
+document.addEventListener('keydown',e=>{
+  if(e.key==='Escape'){
+    ['dayNoteOverlay','shiftNoteOverlay','workerStatsOverlay','weeklyReportOverlay','forceAssignOverlay'].forEach(id=>{
+      const el=document.getElementById(id);if(el&&el.classList.contains('open'))el.classList.remove('open');
+    });
+  }
+});
+
 </script>
 <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
 
@@ -1655,6 +1823,62 @@ function showToast(msg){
     <div class="mactions">
       <button class="btn-cancel" onclick="closeForceAssign()">סגור</button>
     </div>
+  </div>
+</div>
+
+
+<!-- DAY NOTE MODAL -->
+<div class="overlay" id="dayNoteOverlay">
+  <div class="modal" style="width:380px">
+    <div class="modal-title" id="dayNoteTitle">📝 הערת יום</div>
+    <div class="frow">
+      <label class="flabel">הערה לכל היום (ערב חג, אירוע מיוחד...)</label>
+      <textarea id="dayNoteText" class="finput" style="min-height:80px;resize:vertical;margin-top:6px;padding:8px 12px;line-height:1.6" placeholder="ערב חג, חג, אירוע מיוחד..."></textarea>
+    </div>
+    <div class="mactions">
+      <button class="btn-cancel" onclick="closeDayNote()">ביטול</button>
+      <button class="btn-save" onclick="saveDayNote()">שמור</button>
+    </div>
+  </div>
+</div>
+
+<!-- SHIFT NOTE MODAL -->
+<div class="overlay" id="shiftNoteOverlay">
+  <div class="modal" style="width:380px">
+    <div class="modal-title" id="shiftNoteTitle">💬 הערה על משמרת</div>
+    <div class="frow">
+      <textarea id="shiftNoteText" class="finput" style="min-height:80px;resize:vertical;margin-top:6px;padding:8px 12px;line-height:1.6" placeholder="הערה על משמרת זו..."></textarea>
+    </div>
+    <div class="mactions">
+      <button class="btn-cancel" onclick="closeShiftNote()">ביטול</button>
+      <button class="btn-save" onclick="saveShiftNote()">שמור</button>
+    </div>
+  </div>
+</div>
+
+<!-- WORKER STATS MODAL -->
+<div class="overlay" id="workerStatsOverlay">
+  <div class="modal" style="width:500px;max-height:88vh;overflow-y:auto">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px">
+      <div style="font-size:16px;font-weight:600" id="workerStatsTitle">📊 סטטיסטיקה</div>
+      <button onclick="closeWorkerStats()" style="background:none;border:none;font-size:22px;cursor:pointer;color:var(--muted);line-height:1">×</button>
+    </div>
+    <div id="workerStatsContent"></div>
+  </div>
+</div>
+
+<!-- WEEKLY REPORT MODAL -->
+<div class="overlay" id="weeklyReportOverlay">
+  <div class="modal" style="width:680px;max-height:90vh;overflow-y:auto">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px">
+      <div style="font-size:16px;font-weight:600" id="weeklyReportTitle">📊 דוח צבירה שבועי</div>
+      <div style="display:flex;gap:8px">
+        <button onclick="exportWeeklyCSV()" style="background:var(--s3);border:1px solid var(--border2);border-radius:6px;padding:5px 12px;cursor:pointer;font-size:12px;font-family:inherit">📄 CSV</button>
+        <button onclick="closeWeeklyReport()" style="background:none;border:none;font-size:22px;cursor:pointer;color:var(--muted);line-height:1">×</button>
+      </div>
+    </div>
+    <div id="weeklyReportContent"></div>
+    <div class="mactions"><button class="btn-cancel" onclick="closeWeeklyReport()">סגור</button></div>
   </div>
 </div>
 
