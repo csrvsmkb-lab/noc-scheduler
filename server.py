@@ -76,7 +76,9 @@ def fetchone(db, sql, params=()):
     if is_pg():
         cur = db.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
         cur.execute(pg_sql(sql), params)
-        return cur.fetchone()
+        row = cur.fetchone()
+        # Convert to regular dict if needed
+        return dict(row) if row else None
     conn = sqlite3.connect(str(DB_FILE))
     conn.row_factory = sqlite3.Row
     return conn.execute(sql, params).fetchone()
@@ -84,7 +86,8 @@ def fetchall(db, sql, params=()):
     if is_pg():
         cur = db.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
         cur.execute(pg_sql(sql), params)
-        return cur.fetchall()
+        rows = cur.fetchall()
+        return [dict(r) for r in rows] if rows else []
     conn = sqlite3.connect(str(DB_FILE))
     conn.row_factory = sqlite3.Row
     return conn.execute(sql, params).fetchall()
@@ -290,7 +293,7 @@ class Handler(http.server.BaseHTTPRequestHandler):
                     row = fetchone(db, "SELECT username FROM users WHERE id=?", (user_id,))
                 username = row['username'] if row else ''
                 with get_db() as db2:
-                    urow = db2.execute("SELECT is_admin FROM users WHERE id=?", (user_id,)).fetchone()
+                    urow = fetchone(db2, "SELECT is_admin FROM users WHERE id=?", (user_id,))
                     is_admin_flag = bool(urow and urow['is_admin'])
                 return self.send_json(200, {'authed': True, 'username': username, 'isAdmin': is_admin_flag or username == ADMIN_USERNAME})
             return self.send_json(200, {'authed': False, 'isAdmin': False})
