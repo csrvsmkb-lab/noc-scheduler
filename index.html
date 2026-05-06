@@ -12,9 +12,17 @@
   --border:rgba(30,100,220,0.13);--border2:rgba(30,100,220,0.30);
   --blue:#1a6ef5;--teal:#0d9e72;--amber:#c87d0a;--red:#d63030;
   --text:#1a1f2e;--muted:#5a6478;--dim:#aab0bc;
-  --font-size: 14px;
+  --font-size:14px;--font-family:'IBM Plex Sans Hebrew',sans-serif;
+  --radius:8px;
 }
-body { font-size: var(--font-size); }
+/* DARK MODE */
+[data-theme="dark"]{
+  --bg:#0f1117;--s1:#1a1d27;--s2:#21253a;--s3:#2a2f45;
+  --border:rgba(255,255,255,0.08);--border2:rgba(255,255,255,0.15);
+  --blue:#4f8ef7;--teal:#2dd4bf;--amber:#f59e0b;--red:#f87171;
+  --text:#e8eaf0;--muted:#8892a4;--dim:#4a5568;
+}
+body{font-size:var(--font-size);font-family:var(--font-family);transition:background .2s,color .2s}
 body, button, input, textarea, select, th, td, .pill, .wname, .wrole, .stat-lbl, .flabel, .finput { font-size: var(--font-size) !important; }
 .stat-val { font-size: calc(var(--font-size) * 1.6) !important; }
 .page-title { font-size: calc(var(--font-size) * 1.43) !important; }
@@ -740,19 +748,10 @@ async function doLogin(){
     const r = await fetch('/api/login',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({username:u,password:p})});
     const d = await r.json();
     if(d.ok){
-      const me = await fetch('/api/me');
-      const md = await me.json();
-      currentIsAdmin = md.isAdmin||false;
+      const md=await fetch('/api/me').then(r=>r.json());
+      currentIsAdmin=md.isAdmin||false;
       err.classList.remove('vis');
-      if(md.isAdmin){
-        showApp(md.username);
-        await loadState();
-        await loadNotes();
-        loadLockedSlots();
-        checkUnreadRequests();
-      } else {
-        showWorkerPortal(md.username);
-      }
+      routeByRole(md);
     } else {
       err.textContent=d.error||'שם משתמש או סיסמה שגויים';
       err.classList.add('vis');
@@ -760,14 +759,36 @@ async function doLogin(){
   } catch(e){ err.textContent='שגיאת תקשורת'; err.classList.add('vis'); }
   btn.disabled=false; btn.textContent='כניסה';
 }
+function routeByRole(md){
+  const role=md.role||'worker';
+  document.getElementById('loginScreen').style.display='none';
+  const ads=document.getElementById('adminDashScreen');
+  if(role==='superadmin'){
+    if(!ads){const d=buildAdminDash(md.username);document.body.appendChild(d);}
+    document.getElementById('appScreen').classList.remove('vis');
+    const ws=document.getElementById('workerScreen');if(ws)ws.classList.remove('vis');
+    document.getElementById('adminDashScreen').style.display='block';
+    loadAdminDash();
+  } else if(role==='manager'){
+    if(ads)ads.style.display='none';
+    const ws=document.getElementById('workerScreen');if(ws)ws.classList.remove('vis');
+    showApp(md.username);
+    loadState().then(()=>{loadNotes();loadLockedSlots();checkUnreadRequests();});
+  } else {
+    if(ads)ads.style.display='none';
+    document.getElementById('appScreen').classList.remove('vis');
+    showWorkerPortal(md.username);
+  }
+}
+
 async function doLogout(){
   await fetch('/api/logout',{method:'POST'});
   currentIsAdmin=false;
   document.getElementById('appScreen').classList.remove('vis');
-  document.getElementById('workerScreen').classList.remove('vis');
+  const ws=document.getElementById('workerScreen');if(ws)ws.classList.remove('vis');
+  const ads=document.getElementById('adminDashScreen');if(ads)ads.style.display='none';
   document.getElementById('loginScreen').style.display='flex';
   document.getElementById('loginPass').value='';
-  document.getElementById('adminBtn').style.display='none';
 }
 function showApp(username){
   window._myUsername = username;
@@ -776,7 +797,7 @@ function showApp(username){
   if(username) document.getElementById('userChip').textContent=username;
   renderShiftsLegend();
   updatePrefShiftsModal();
-  document.getElementById('adminBtn').style.display = currentIsAdmin?'flex':'none';
+
 }
 document.getElementById('loginPass').addEventListener('keydown',e=>{if(e.key==='Enter')doLogin()});
 document.getElementById('loginUser').addEventListener('keydown',e=>{if(e.key==='Enter')document.getElementById('loginPass').focus()});
@@ -1729,16 +1750,8 @@ initWeekDate();
     const r = await fetch('/api/me');
     const d = await r.json();
     if(d.authed){
-      currentIsAdmin = d.isAdmin||false;
-      if(d.isAdmin){
-        showApp(d.username);
-        await loadState();
-        await loadNotes();
-        loadLockedSlots();
-        checkUnreadRequests();
-      } else {
-        showWorkerPortal(d.username);
-      }
+      currentIsAdmin=d.isAdmin||false;
+      routeByRole(d);
     }
   } catch(e){}
 })();
@@ -2682,6 +2695,248 @@ async function loadWorkerRequestsForAlgo(){
   } catch(e){ window._workerRequests={}; }
 }
 
+
+// ═══════════════════════════════════════════════════════
+//  DARK MODE + DISPLAY SETTINGS
+// ═══════════════════════════════════════════════════════
+function toggleDarkMode(){
+  const isDark = document.documentElement.getAttribute('data-theme')==='dark';
+  setTheme(isDark?'light':'dark');
+}
+
+function setTheme(mode){
+  if(mode==='dark'){
+    document.documentElement.setAttribute('data-theme','dark');
+    document.getElementById('themeToggleBtn').textContent='🌙';
+  } else {
+    document.documentElement.removeAttribute('data-theme');
+    document.getElementById('themeToggleBtn').textContent='☀️';
+  }
+  try{localStorage.setItem('sc_theme',mode);}catch(e){}
+  saveCustomize();
+}
+
+function loadTheme(){
+  try{
+    const t=localStorage.getItem('sc_theme')||'light';
+    setTheme(t);
+  }catch(e){}
+}
+
+// Font family options
+function setFontFamily(family){
+  document.documentElement.style.setProperty('--font-family', family);
+  document.body.style.fontFamily = family;
+  try{localStorage.setItem('sc_font_family', family);}catch(e){}
+  saveCustomize();
+}
+
+function loadFontFamily(){
+  try{
+    const f=localStorage.getItem('sc_font_family');
+    if(f){ document.documentElement.style.setProperty('--font-family',f); document.body.style.fontFamily=f; }
+  }catch(e){}
+}
+
+
+// ═══════════════════════════════════════════════════════
+//  SUPERADMIN DASHBOARD
+// ═══════════════════════════════════════════════════════
+function buildAdminDash(username){
+  const div=document.createElement('div');
+  div.id='adminDashScreen';
+  div.style.cssText='min-height:100vh;background:var(--bg);direction:rtl;display:none';
+  div.innerHTML=`
+    <div style="background:var(--s1);border-bottom:1px solid var(--border);padding:0 24px;height:56px;display:flex;align-items:center;justify-content:space-between;position:sticky;top:0;z-index:100">
+      <div style="display:flex;align-items:center;gap:10px">
+        <div style="width:30px;height:30px;border-radius:7px;background:linear-gradient(135deg,var(--blue),#7c3aed);display:flex;align-items:center;justify-content:center;font-size:14px">⚡</div>
+        <span style="font-size:14px;font-weight:700">ShiftCraft AI</span>
+        <span style="font-size:10px;background:rgba(124,58,237,.1);color:#7c3aed;border:1px solid rgba(124,58,237,.25);border-radius:4px;padding:2px 8px">Super Admin</span>
+      </div>
+      <div style="display:flex;align-items:center;gap:10px">
+        <span style="font-size:12px;color:var(--muted)">${username}</span>
+        <button onclick="toggleDarkMode()" id="adminThemeBtn" style="background:var(--s3);border:1px solid var(--border);border-radius:6px;padding:5px 10px;cursor:pointer;font-size:13px">☀️</button>
+        <button onclick="doLogout()" style="background:none;border:1px solid var(--border);border-radius:6px;padding:5px 12px;font-size:12px;cursor:pointer;color:var(--muted);font-family:inherit">יציאה</button>
+      </div>
+    </div>
+    <div style="max-width:1100px;margin:0 auto;padding:28px 24px">
+      <div style="margin-bottom:24px">
+        <div style="font-size:20px;font-weight:700;margin-bottom:4px">לוח בקרה 📊</div>
+        <div style="font-size:13px;color:var(--muted)">ניהול חברות, מחלקות ומנהלים</div>
+      </div>
+      <!-- Stats -->
+      <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:14px;margin-bottom:28px">
+        <div style="background:var(--s1);border:1px solid var(--border);border-radius:10px;padding:18px">
+          <div style="font-size:22px;margin-bottom:6px">🏢</div>
+          <div id="adStatC" style="font-size:30px;font-weight:700;font-family:monospace;color:var(--blue)">—</div>
+          <div style="font-size:11px;color:var(--muted)">חברות פעילות</div>
+        </div>
+        <div style="background:var(--s1);border:1px solid var(--border);border-radius:10px;padding:18px">
+          <div style="font-size:22px;margin-bottom:6px">👔</div>
+          <div id="adStatM" style="font-size:30px;font-weight:700;font-family:monospace;color:#7c3aed">—</div>
+          <div style="font-size:11px;color:var(--muted)">מנהלי משמרות</div>
+        </div>
+        <div style="background:var(--s1);border:1px solid var(--border);border-radius:10px;padding:18px">
+          <div style="font-size:22px;margin-bottom:6px">👤</div>
+          <div id="adStatW" style="font-size:30px;font-weight:700;font-family:monospace;color:var(--teal)">—</div>
+          <div style="font-size:11px;color:var(--muted)">עובדים</div>
+        </div>
+        <div style="background:var(--s1);border:1px solid var(--border);border-radius:10px;padding:18px">
+          <div style="font-size:22px;margin-bottom:6px">📋</div>
+          <div id="adStatT" style="font-size:30px;font-weight:700;font-family:monospace;color:var(--amber)">—</div>
+          <div style="font-size:11px;color:var(--muted)">סה״כ משתמשים</div>
+        </div>
+      </div>
+      <!-- Tabs -->
+      <div style="display:flex;gap:4px;margin-bottom:20px;background:var(--s2);border-radius:9px;padding:4px">
+        <button onclick="adminDashTab('companies')" id="adTab1" class="admin-dash-tab active-dash-tab" style="flex:1;padding:9px;border-radius:6px;border:none;background:var(--s3);font-size:13px;cursor:pointer;font-family:inherit;font-weight:600;color:var(--text)">🏢 חברות</button>
+        <button onclick="adminDashTab('users')" id="adTab2" class="admin-dash-tab" style="flex:1;padding:9px;border-radius:6px;border:none;background:none;font-size:13px;cursor:pointer;font-family:inherit;color:var(--muted)">👥 משתמשים</button>
+      </div>
+      <!-- Companies -->
+      <div id="adTabCompanies">
+        <div style="background:var(--s1);border:1px solid var(--border);border-radius:12px;padding:18px">
+          <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px">
+            <span style="font-size:14px;font-weight:600">חברות רשומות</span>
+            <button onclick="openAddCompanyModal()" style="background:var(--blue);color:#fff;border:none;border-radius:7px;padding:7px 16px;font-size:12px;cursor:pointer;font-family:inherit">+ הוסף חברה</button>
+          </div>
+          <div id="adCompTable"><div style="text-align:center;color:var(--muted);padding:20px">טוען...</div></div>
+        </div>
+      </div>
+      <!-- Users -->
+      <div id="adTabUsers" style="display:none">
+        <div style="background:var(--s1);border:1px solid var(--border);border-radius:12px;padding:18px">
+          <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px">
+            <span style="font-size:14px;font-weight:600">כל המשתמשים</span>
+            <button onclick="openAddManagerModal()" style="background:var(--blue);color:#fff;border:none;border-radius:7px;padding:7px 16px;font-size:12px;cursor:pointer;font-family:inherit">+ הוסף מנהל</button>
+          </div>
+          <div id="adUsersTable"><div style="text-align:center;color:var(--muted);padding:20px">טוען...</div></div>
+        </div>
+      </div>
+    </div>`;
+  return div;
+}
+
+function adminDashTab(tab){
+  document.getElementById('adTabCompanies').style.display=tab==='companies'?'block':'none';
+  document.getElementById('adTabUsers').style.display=tab==='users'?'block':'none';
+  document.getElementById('adTab1').style.cssText='flex:1;padding:9px;border-radius:6px;border:none;font-size:13px;cursor:pointer;font-family:inherit;'+(tab==='companies'?'background:var(--s3);font-weight:600;color:var(--text)':'background:none;color:var(--muted)');
+  document.getElementById('adTab2').style.cssText='flex:1;padding:9px;border-radius:6px;border:none;font-size:13px;cursor:pointer;font-family:inherit;'+(tab==='users'?'background:var(--s3);font-weight:600;color:var(--text)':'background:none;color:var(--muted)');
+  if(tab==='users') loadAdminUsers();
+}
+
+let _adCompanies=[];
+async function loadAdminDash(){
+  try{
+    const d=await fetch('/api/admin/stats').then(r=>r.json());
+    document.getElementById('adStatC').textContent=d.activeCompanies||0;
+    document.getElementById('adStatM').textContent=d.totalManagers||0;
+    document.getElementById('adStatW').textContent=d.totalWorkers||0;
+    document.getElementById('adStatT').textContent=d.totalUsers||0;
+  }catch(e){}
+  loadAdminCompanies();
+}
+
+async function loadAdminCompanies(){
+  try{
+    const d=await fetch('/api/companies').then(r=>r.json());
+    _adCompanies=d.companies||[];
+    const el=document.getElementById('adCompTable');
+    if(!_adCompanies.length){el.innerHTML='<div style="text-align:center;color:var(--muted);padding:24px">אין חברות עדיין. הוסף חברה ראשונה!</div>';return;}
+    const planBadge={trial:'background:rgba(90,100,120,.1);color:var(--muted)',pro:'background:rgba(26,110,245,.1);color:var(--blue)',enterprise:'background:rgba(124,58,237,.1);color:#7c3aed'};
+    el.innerHTML=`<table style="width:100%;border-collapse:collapse;font-size:13px">
+      <thead><tr style="border-bottom:2px solid var(--border)">
+        <th style="padding:8px 12px;text-align:right;color:var(--muted);font-weight:500">שם חברה</th>
+        <th style="padding:8px;text-align:center;color:var(--muted);font-weight:500">תוכנית</th>
+        <th style="padding:8px;text-align:center;color:var(--muted);font-weight:500">סטטוס</th>
+        <th style="padding:8px;text-align:center;color:var(--muted);font-weight:500">נוצרה</th>
+        <th style="padding:8px;text-align:center;color:var(--muted);font-weight:500">פעולות</th>
+      </tr></thead><tbody>
+      ${_adCompanies.map(c=>`<tr style="border-bottom:1px solid var(--border)">
+        <td style="padding:10px 12px;font-weight:500">${c.name}</td>
+        <td style="padding:10px;text-align:center"><span style="padding:2px 10px;border-radius:20px;font-size:11px;${planBadge[c.plan]||planBadge.trial}">${c.plan==='pro'?'Pro':c.plan==='enterprise'?'Enterprise':'Trial'}</span></td>
+        <td style="padding:10px;text-align:center"><span style="padding:2px 10px;border-radius:20px;font-size:11px;${c.active?'background:rgba(13,158,114,.1);color:var(--teal)':'background:rgba(214,48,48,.1);color:var(--red)'}">${c.active?'פעיל':'מושבת'}</span></td>
+        <td style="padding:10px;text-align:center;color:var(--muted);font-size:11px">${(c.created||'').slice(0,10)}</td>
+        <td style="padding:10px;text-align:center">
+          <button onclick="openAddManagerModal(${c.id},'${c.name.replace(/'/g,"\'")}');" style="background:var(--s3);border:1px solid var(--border);border-radius:5px;padding:4px 10px;font-size:11px;cursor:pointer;font-family:inherit">+ מנהל</button>
+        </td>
+      </tr>`).join('')}
+      </tbody></table>`;
+  }catch(e){console.error(e);}
+}
+
+async function loadAdminUsers(){
+  try{
+    const d=await fetch('/api/users').then(r=>r.json());
+    const users=d.users||[];
+    const cMap={};_adCompanies.forEach(c=>cMap[c.id]=c.name);
+    const el=document.getElementById('adUsersTable');
+    if(!users.length){el.innerHTML='<div style="text-align:center;color:var(--muted);padding:24px">אין משתמשים</div>';return;}
+    el.innerHTML=`<table style="width:100%;border-collapse:collapse;font-size:13px">
+      <thead><tr style="border-bottom:2px solid var(--border)">
+        <th style="padding:8px 12px;text-align:right;color:var(--muted);font-weight:500">משתמש</th>
+        <th style="padding:8px;text-align:center;color:var(--muted);font-weight:500">תפקיד</th>
+        <th style="padding:8px;text-align:center;color:var(--muted);font-weight:500">חברה</th>
+        <th style="padding:8px;text-align:center;color:var(--muted);font-weight:500">פעולות</th>
+      </tr></thead><tbody>
+      ${users.map(u=>`<tr style="border-bottom:1px solid var(--border)">
+        <td style="padding:10px 12px;font-weight:500">${u.username}</td>
+        <td style="padding:10px;text-align:center"><span style="padding:2px 10px;border-radius:20px;font-size:11px;${u.isAdmin?'background:rgba(124,58,237,.1);color:#7c3aed':'background:rgba(90,100,120,.1);color:var(--muted)'}">${u.isAdmin?'👔 מנהל':'👤 עובד'}</span></td>
+        <td style="padding:10px;text-align:center;color:var(--muted);font-size:12px">${cMap[u.company_id]||'—'}</td>
+        <td style="padding:10px;text-align:center">
+          <button onclick="deleteAdminUser(${u.id},'${u.username.replace(/'/g,"\'")}');" style="background:rgba(214,48,48,.08);border:1px solid rgba(214,48,48,.2);color:var(--red);border-radius:5px;padding:4px 10px;font-size:11px;cursor:pointer;font-family:inherit">מחק</button>
+        </td>
+      </tr>`).join('')}
+      </tbody></table>`;
+  }catch(e){}
+}
+
+async function deleteAdminUser(id,name){
+  if(!confirm(`למחוק "${name}"?`))return;
+  const d=await fetch('/api/delete-user',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({user_id:id})}).then(r=>r.json());
+  if(d.ok){loadAdminDash();loadAdminUsers();}else alert(d.error||'שגיאה');
+}
+
+let _adMgrCompId=null;
+function openAddCompanyModal(){
+  document.getElementById('addCompInput').value='';
+  document.getElementById('addCompPlan').value='trial';
+  document.getElementById('addCompMsg').style.display='none';
+  document.getElementById('addCompOverlay').classList.add('open');
+}
+function closeAddCompanyModal(){document.getElementById('addCompOverlay').classList.remove('open');}
+async function submitAddCompany(){
+  const name=document.getElementById('addCompInput').value.trim();
+  const plan=document.getElementById('addCompPlan').value;
+  const msg=document.getElementById('addCompMsg');
+  if(!name){msg.style.cssText='display:block;color:var(--red)';msg.textContent='נא להזין שם';return;}
+  const d=await fetch('/api/companies/create',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({name,plan})}).then(r=>r.json());
+  if(d.ok){msg.style.cssText='display:block;color:var(--teal)';msg.textContent='✓ חברה נוצרה';setTimeout(()=>{closeAddCompanyModal();loadAdminDash();},1000);}
+  else{msg.style.cssText='display:block;color:var(--red)';msg.textContent=d.error||'שגיאה';}
+}
+
+function openAddManagerModal(cid,cname){
+  _adMgrCompId=cid||null;
+  document.getElementById('addMgrUn').value='';
+  document.getElementById('addMgrPw').value='';
+  document.getElementById('addMgrMsg').style.display='none';
+  const sel=document.getElementById('addMgrCompSel');
+  sel.innerHTML='<option value="">— בחר חברה —</option>'+_adCompanies.map(c=>`<option value="${c.id}" ${c.id==cid?'selected':''}>${c.name}</option>`).join('');
+  document.getElementById('addMgrTitle').textContent=cname?`הוסף מנהל — ${cname}`:'הוסף מנהל משמרות';
+  document.getElementById('addMgrOverlay').classList.add('open');
+}
+function closeAddManagerModal(){document.getElementById('addMgrOverlay').classList.remove('open');}
+async function submitAddManager(){
+  const un=document.getElementById('addMgrUn').value.trim();
+  const pw=document.getElementById('addMgrPw').value;
+  const cid=parseInt(document.getElementById('addMgrCompSel').value)||null;
+  const msg=document.getElementById('addMgrMsg');
+  if(!un||!pw){msg.style.cssText='display:block;color:var(--red)';msg.textContent='נא למלא שם וסיסמה';return;}
+  if(pw.length<4){msg.style.cssText='display:block;color:var(--red)';msg.textContent='סיסמה מינ׳ 4 תווים';return;}
+  const d=await fetch('/api/register',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({username:un,password:pw,is_admin:true,company_id:cid})}).then(r=>r.json());
+  if(d.ok){msg.style.cssText='display:block;color:var(--teal)';msg.textContent='✓ מנהל נוצר';setTimeout(()=>{closeAddManagerModal();loadAdminDash();},1000);}
+  else{msg.style.cssText='display:block;color:var(--red)';msg.textContent=d.error||'שגיאה';}
+}
+
 </script>
 <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
 
@@ -2690,18 +2945,27 @@ async function loadWorkerRequestsForAlgo(){
   <div class="modal" style="width:380px">
     <div class="modal-title">⚙️ התאמה אישית</div>
     <div class="frow">
-      <label class="flabel">גודל טקסט</label>
-      <div style="display:flex;align-items:center;gap:10px;margin-top:4px">
-        <button onclick="changeFontSize(-1)" style="background:var(--s3);border:1px solid var(--border2);border-radius:6px;padding:4px 12px;cursor:pointer;font-size:16px;font-family:inherit">−</button>
-        <span id="fontSizeLabel" style="font-family:monospace;font-size:14px;min-width:36px;text-align:center">14px</span>
-        <button onclick="changeFontSize(+1)" style="background:var(--s3);border:1px solid var(--border2);border-radius:6px;padding:4px 12px;cursor:pointer;font-size:16px;font-family:inherit">+</button>
+      <label class="flabel">מצב תצוגה</label>
+      <div style="display:flex;gap:8px;margin-top:6px">
+        <button onclick="setTheme('light')" style="background:var(--s3);border:1px solid var(--border2);border-radius:6px;padding:8px 18px;cursor:pointer;font-size:13px;font-family:inherit;flex:1">☀️ בהיר</button>
+        <button onclick="setTheme('dark')" style="background:var(--s3);border:1px solid var(--border2);border-radius:6px;padding:8px 18px;cursor:pointer;font-size:13px;font-family:inherit;flex:1">🌙 כהה</button>
       </div>
     </div>
     <div class="frow">
-      <label class="flabel">ערכת צבעים</label>
-      <div style="display:flex;gap:8px;margin-top:6px;flex-wrap:wrap">
-        <button onclick="setTheme('light')" style="background:var(--s3);border:1px solid var(--border2);border-radius:6px;padding:6px 14px;cursor:pointer;font-size:12px;font-family:inherit">☀️ בהיר</button>
-        <button onclick="setTheme('dark')" style="background:var(--s3);border:1px solid var(--border2);border-radius:6px;padding:6px 14px;cursor:pointer;font-size:12px;font-family:inherit">🌙 כהה</button>
+      <label class="flabel">גודל טקסט</label>
+      <div style="display:flex;align-items:center;gap:10px;margin-top:4px">
+        <button onclick="changeFontSize(-1)" style="background:var(--s3);border:1px solid var(--border2);border-radius:6px;padding:4px 14px;cursor:pointer;font-size:18px;font-family:inherit">−</button>
+        <span id="fontSizeLabel" style="font-family:monospace;font-size:14px;min-width:42px;text-align:center">14px</span>
+        <button onclick="changeFontSize(+1)" style="background:var(--s3);border:1px solid var(--border2);border-radius:6px;padding:4px 14px;cursor:pointer;font-size:18px;font-family:inherit">+</button>
+      </div>
+    </div>
+    <div class="frow">
+      <label class="flabel">גופן</label>
+      <div style="display:flex;gap:6px;margin-top:6px;flex-wrap:wrap">
+        <button onclick="setFontFamily('IBM Plex Sans Hebrew, sans-serif')" style="background:var(--s3);border:1px solid var(--border2);border-radius:6px;padding:6px 12px;cursor:pointer;font-size:12px;font-family:IBM Plex Sans Hebrew,sans-serif">IBM Plex</button>
+        <button onclick="setFontFamily('Arial, sans-serif')" style="background:var(--s3);border:1px solid var(--border2);border-radius:6px;padding:6px 12px;cursor:pointer;font-size:12px;font-family:Arial">Arial</button>
+        <button onclick="setFontFamily('Segoe UI, sans-serif')" style="background:var(--s3);border:1px solid var(--border2);border-radius:6px;padding:6px 12px;cursor:pointer;font-size:12px;font-family:Segoe UI">Segoe UI</button>
+        <button onclick="setFontFamily('Tahoma, sans-serif')" style="background:var(--s3);border:1px solid var(--border2);border-radius:6px;padding:6px 12px;cursor:pointer;font-size:12px;font-family:Tahoma">Tahoma</button>
       </div>
     </div>
     <div class="frow">
@@ -2941,6 +3205,40 @@ async function loadWorkerRequestsForAlgo(){
     <div style="font-size:12px;color:var(--muted);margin-bottom:12px">בקשות לשבוע שנבחר בלוח. האלגוריתם מתחשב בהן אוטומטית בבנייה.</div>
     <div id="workerReqContent"></div>
     <div class="mactions"><button class="btn-cancel" onclick="closeWorkerRequests()">סגור</button></div>
+  </div>
+</div>
+
+
+<!-- ADMIN DASHBOARD MODALS -->
+<div class="overlay" id="addCompOverlay">
+  <div class="modal" style="width:400px">
+    <div class="modal-title">🏢 הוסף חברה חדשה</div>
+    <div class="frow"><label class="flabel">שם החברה</label><input class="finput" id="addCompInput" placeholder="שם החברה" style="margin-top:4px"></div>
+    <div class="frow"><label class="flabel">תוכנית</label>
+      <select class="finput" id="addCompPlan" style="margin-top:4px">
+        <option value="trial">Trial (ניסיון)</option>
+        <option value="pro">Pro</option>
+        <option value="enterprise">Enterprise</option>
+      </select>
+    </div>
+    <div id="addCompMsg" style="display:none;font-size:12px;margin-top:6px"></div>
+    <div class="mactions">
+      <button class="btn-cancel" onclick="closeAddCompanyModal()">ביטול</button>
+      <button class="btn-save" onclick="submitAddCompany()">צור חברה</button>
+    </div>
+  </div>
+</div>
+<div class="overlay" id="addMgrOverlay">
+  <div class="modal" style="width:420px">
+    <div class="modal-title" id="addMgrTitle">👔 הוסף מנהל משמרות</div>
+    <div class="frow"><label class="flabel">חברה</label><select class="finput" id="addMgrCompSel" style="margin-top:4px"><option value="">— בחר —</option></select></div>
+    <div class="frow"><label class="flabel">שם משתמש</label><input class="finput" id="addMgrUn" placeholder="שם משתמש" style="margin-top:4px"></div>
+    <div class="frow"><label class="flabel">סיסמה</label><input class="finput" type="password" id="addMgrPw" placeholder="מינ׳ 4 תווים" style="margin-top:4px"></div>
+    <div id="addMgrMsg" style="display:none;font-size:12px;padding:7px 10px;border-radius:6px;margin-top:6px"></div>
+    <div class="mactions">
+      <button class="btn-cancel" onclick="closeAddManagerModal()">ביטול</button>
+      <button class="btn-save" onclick="submitAddManager()">צור מנהל</button>
+    </div>
   </div>
 </div>
 
