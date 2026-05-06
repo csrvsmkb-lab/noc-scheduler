@@ -210,21 +210,28 @@ def create_session(user_id):
     with get_db() as db:
         execute(db, "DELETE FROM sessions WHERE created < ?", (time.time() - SESSION_TTL,))
         execute(db, "INSERT INTO sessions (token, user_id, created) VALUES (?,?,?)",
-                  (token, user_id, time.time()))
+                  (token, user_id, float(time.time())))
     return token
 
 def get_session_user(token):
     if not token: return None
-    with get_db() as db:
-        row = fetchone(db, "SELECT user_id, created FROM sessions WHERE token=?", (token,))
-        if not row: return None
-        created_val = row['created']
-        if isinstance(created_val, str):
-            created_val = float(created_val)
-        if time.time() - created_val > SESSION_TTL:
-            execute(db, "DELETE FROM sessions WHERE token=?", (token,))
-            return None
-        return row['user_id']
+    try:
+        with get_db() as db:
+            row = fetchone(db, "SELECT user_id, created FROM sessions WHERE token=?", (token,))
+            if not row: return None
+            created_val = row['created']
+            # Handle various types: float, str, Decimal (PostgreSQL)
+            try:
+                created_val = float(created_val)
+            except (TypeError, ValueError):
+                created_val = 0
+            if time.time() - created_val > SESSION_TTL:
+                execute(db, "DELETE FROM sessions WHERE token=?", (token,))
+                return None
+            return row['user_id']
+    except Exception as e:
+        print(f'get_session_user error: {e}', flush=True)
+        return None
 
 def delete_session(token):
     with get_db() as db:
@@ -328,17 +335,22 @@ class Handler(http.server.BaseHTTPRequestHandler):
             if not user_id: return self.send_json(401, {'error': 'לא מחובר'})
             return self.send_json(200, load_user_data(user_id))
 
-        # ── FIX: /api/users via GET (admin only) ─────────
+        # ── /api/users via GET (admin only) ──────────────
         if path == '/api/users':
-            if not user_id: return self.send_json(401, {'error': 'לא מחובר'})
+            if not user_id:
+                print(f'GET /api/users: no user_id from token={get_token(self)[:10] if get_token(self) else None}', flush=True)
+                return self.send_json(401, {'error': 'לא מחובר'})
             with get_db() as db:
                 row = fetchone(db, "SELECT username, is_admin FROM users WHERE id=?", (user_id,))
-                if not row or (row['username'] != ADMIN_USERNAME and int(row.get('is_admin') or 0) != 1):
+                print(f'GET /api/users: user_id={user_id} row={row} ADMIN_USERNAME={ADMIN_USERNAME}', flush=True)
+                is_admin_check = row and (row['username'] == ADMIN_USERNAME or int(row.get('is_admin') or 0) == 1)
+                if not is_admin_check:
                     return self.send_json(403, {'error': 'אין הרשאה'})
                 users = fetchall(db, "SELECT id, username, is_admin, created FROM users ORDER BY created")
                 return self.send_json(200, {'users': [
                     {'id': u['id'], 'username': u['username'],
-                     'isAdmin': bool(int(u.get('is_admin') or 0) == 1 or u['username'] == ADMIN_USERNAME), 'created': u['created']}
+                     'isAdmin': bool(int(u.get('is_admin') or 0) == 1 or u['username'] == ADMIN_USERNAME),
+                     'created': str(u['created']) if u['created'] else ''}
                     for u in users
                 ]})
 
