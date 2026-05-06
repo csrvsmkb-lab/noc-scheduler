@@ -371,6 +371,7 @@ td.locked-cell::after{content:'🔒';position:absolute;top:1px;right:1px;font-si
             <button class="exp-btn" onclick="exportCSV()">📄 CSV</button>
             <button class="exp-btn" onclick="exportExcel()">📊 Excel</button>
             <button class="exp-btn" onclick="window.print()">🖨️ PDF</button>
+            <button class="exp-btn" onclick="shareAllWhatsApp()" style="background:rgba(37,211,102,.12);border-color:rgba(37,211,102,.4);color:#128c7e" title="שלח לכל הצוות">📱 WhatsApp</button>
           </div>
         </div>
       </div>
@@ -572,6 +573,7 @@ let currentIsAdmin = false;
 let lastRejectionLog = {};
 let dayNotes = {};
 let shiftNotesCache = {};
+let lockedSlots = {}; // key: 'day|shift' -> [workerNames]
 
 // ═══════════════════════════════════════════════════════
 //  STATE
@@ -793,6 +795,7 @@ function renderWorkers(){
         </div>
         <div style="display:flex;gap:4px;flex-shrink:0">
           <button onclick="editWorker(${w.id})" style="background:none;border:1px solid var(--border2);border-radius:5px;color:var(--blue);cursor:pointer;font-size:11px;padding:2px 7px;font-family:inherit">✏️</button>
+          ${lastSchedule?`<button onclick="shareWorkerWhatsApp('${w.name.replace(/'/g,"\'")}')" style="background:none;border:1px solid rgba(37,211,102,.4);border-radius:5px;color:#128c7e;cursor:pointer;font-size:11px;padding:2px 7px;font-family:inherit" title="שלח סידור ב-WhatsApp">📱</button>`:''}
           <button class="wdel" onclick="delWorker(${w.id})">×</button>
         </div>
       </div>
@@ -1805,8 +1808,9 @@ function openWorkerStats(workerName){
     </div>
     ${w.notes?`<div style="font-size:12px;background:var(--s2);border:1px solid var(--border);border-radius:7px;padding:8px 12px;margin-top:8px">📝 ${w.notes}</div>`:''}
     ${myNotes.length?`<div style="margin-top:12px;font-size:11px;font-weight:600;color:var(--muted);margin-bottom:5px">💬 הערות (${myNotes.length})</div>${myNotes.map(n=>`<div style="background:var(--s2);border:1px solid var(--border);border-radius:7px;padding:6px 12px;margin-bottom:4px;font-size:12px"><span style="color:var(--muted)">${n.day} ${n.shift}:</span> ${n.note}</div>`).join('')}`:''}
-    <div style="margin-top:14px;padding-top:12px;border-top:1px solid var(--border)">
-      <button onclick="closeWorkerStats();openWeeklyReport('${workerName.replace(/'/g,"\'")}')" style="background:var(--s3);border:1px solid var(--border2);border-radius:7px;padding:7px 14px;cursor:pointer;font-size:12px;font-family:inherit;color:var(--blue)">📊 דוח צבירה שבועי</button>
+    <div style="margin-top:14px;padding-top:12px;border-top:1px solid var(--border);display:flex;gap:8px;flex-wrap:wrap">
+      <button onclick="closeWorkerStats();openWeeklyReport('${workerName.replace(/'/g,"\'")}')" style="background:var(--s3);border:1px solid var(--border2);border-radius:7px;padding:7px 14px;cursor:pointer;font-size:12px;font-family:inherit;color:var(--blue)">📊 דוח שבועי</button>
+      <button onclick="shareWorkerWhatsApp('${workerName.replace(/'/g,"\'")}');closeWorkerStats();" style="background:rgba(37,211,102,.1);border:1px solid rgba(37,211,102,.4);border-radius:7px;padding:7px 14px;cursor:pointer;font-size:12px;font-family:inherit;color:#128c7e">📱 שלח WhatsApp</button>
     </div>`;
   document.getElementById('workerStatsTitle').textContent='📊 '+workerName;
   document.getElementById('workerStatsOverlay').classList.add('open');
@@ -2158,7 +2162,6 @@ function getDayPrefs(){
 // ═══════════════════════════════════════════════════════
 //  LOCKED SLOTS — persist in workers data
 // ═══════════════════════════════════════════════════════
-let lockedSlots = {}; // key: "day|shift" -> [workerNames]
 
 function toggleLockSlot(workerName, day, shift){
   const key = day+'|'+shift;
@@ -2196,6 +2199,98 @@ document.getElementById('weekStartDate')?.addEventListener('change', ()=>{
 
 // Also add "off" day pref as hard constraint — worker won't be assigned that day
 // This is handled in algorithm via dayPrefs[day]==='off'
+
+
+// ═══════════════════════════════════════════════════════
+//  WHATSAPP SHARE
+// ═══════════════════════════════════════════════════════
+function shareWorkerWhatsApp(workerName){
+  if(!lastSchedule){ alert('יש לבנות לוח תחילה'); return; }
+  const w = workers.find(x=>x.name===workerName);
+  if(!w) return;
+
+  const weekStart = document.getElementById('weekStartDate')?.value||'';
+  const weekDates = getWeekDates();
+
+  let msg = `📋 *סידור עבודה — ${workerName}*
+`;
+  if(weekStart) msg += `שבוע: ${weekStart}
+`;
+  msg += `━━━━━━━━━━━━━━
+`;
+
+  let hasSomething = false;
+  for(let di=0; di<DAYS.length; di++){
+    const day = DAYS[di];
+    const date = weekDates[di]||'';
+    const sh = getShiftNames().find(s=>(lastSchedule[day]?.[s]||[]).includes(workerName));
+    const isDayAbsent = (w.absenceDays||[]).includes(day);
+    const isBlocked = w.blockedDays.includes(day);
+
+    if(sh){
+      // Find shift times
+      const shiftObj = shifts.find(s=>s.name===sh);
+      const times = shiftObj ? `${shiftObj.start}–${shiftObj.end}` : '';
+      msg += `📅 *${day}* ${date}: ${sh} ${times}
+`;
+      hasSomething = true;
+    } else if(isDayAbsent){
+      msg += `📅 *${day}* ${date}: ${w.absenceType==='vacation'?'🏖️ חופש':'🤒 מחלה'}
+`;
+    } else {
+      msg += `📅 *${day}* ${date}: חופש
+`;
+    }
+  }
+
+  const ws = (lastStats||{})[workerName]||{};
+  msg += `━━━━━━━━━━━━━━
+`;
+  msg += `סה״כ: ${ws.total_shifts||0} משמרות`;
+  if(ws.nights) msg += ` | לילות: ${ws.nights}`;
+  msg += `
+
+נשלח מ-ShiftCraft AI 🤖`;
+
+  const encoded = encodeURIComponent(msg);
+  window.open(`https://wa.me/?text=${encoded}`, '_blank');
+}
+
+function shareAllWhatsApp(){
+  if(!lastSchedule){ alert('יש לבנות לוח תחילה'); return; }
+  const weekStart = document.getElementById('weekStartDate')?.value||'';
+  const weekDates = getWeekDates();
+
+  let msg = `📋 *סידור עבודה שבועי*
+`;
+  if(weekStart) msg += `שבוע: ${weekStart}
+`;
+  msg += `━━━━━━━━━━━━━━
+
+`;
+
+  for(const w of workers.filter(x=>x.status!=='vacation'&&x.status!=='sick')){
+    const myShifts = [];
+    for(let di=0; di<DAYS.length; di++){
+      const day=DAYS[di];
+      const sh=getShiftNames().find(s=>(lastSchedule[day]?.[s]||[]).includes(w.name));
+      if(sh){
+        const shiftObj=shifts.find(s=>s.name===sh);
+        const times=shiftObj?`(${shiftObj.start}–${shiftObj.end})`:'';
+        myShifts.push(`${day.slice(0,2)} ${sh.slice(0,2)} ${times}`);
+      }
+    }
+    if(myShifts.length){
+      msg += `👤 *${w.name}*: ${myShifts.join(' | ')}
+`;
+    }
+  }
+
+  msg += `
+נשלח מ-ShiftCraft AI 🤖`;
+  const encoded = encodeURIComponent(msg);
+  window.open(`https://wa.me/?text=${encoded}`, '_blank');
+}
 
 </script>
 <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
