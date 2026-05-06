@@ -325,7 +325,7 @@ table.sgrid td.nc{text-align:right;font-weight:500;background:var(--s2);color:va
     <div class="frow"><label class="flabel">תפקיד</label><input class="finput" id="f_role" placeholder="Shift Analyst"></div>
     <div class="frow">
       <label class="flabel">ימים אסורים לעבודה</label>
-      <div class="chk-group" id="blockedDaysGroup">
+      <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:5px;margin-top:4px" id="blockedDaysGroup">
         <label class="chk-item"><input type="checkbox" value="ראשון"> ראשון</label>
         <label class="chk-item"><input type="checkbox" value="שני"> שני</label>
         <label class="chk-item"><input type="checkbox" value="שלישי"> שלישי</label>
@@ -337,38 +337,54 @@ table.sgrid td.nc{text-align:right;font-weight:500;background:var(--s2);color:va
     </div>
     <div class="frow">
       <label class="flabel">משמרות מועדפות</label>
-      <div class="chk-group" id="prefShiftsGroup"></div>
+      <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:4px" id="prefShiftsGroup"></div>
     </div>
     <div class="frow"><label class="flabel">הגבלות אישיות (אופציונלי)</label><input class="finput" id="f_notes" placeholder="למשל: לא יותר מ-2 לילות בשבת"></div>
     <div class="frow">
-      <label class="flabel">פעילות מחוץ למשרד 🏃</label>
-      <div style="display:flex;flex-wrap:wrap;gap:5px;margin-top:4px">
-        <label class="chk-item"><input type="checkbox" class="officeout-day" value="ראשון"> ראשון</label>
-        <label class="chk-item"><input type="checkbox" class="officeout-day" value="שני"> שני</label>
-        <label class="chk-item"><input type="checkbox" class="officeout-day" value="שלישי"> שלישי</label>
-        <label class="chk-item"><input type="checkbox" class="officeout-day" value="רביעי"> רביעי</label>
-        <label class="chk-item"><input type="checkbox" class="officeout-day" value="חמישי"> חמישי</label>
-        <label class="chk-item"><input type="checkbox" class="officeout-day" value="שישי"> שישי</label>
-        <label class="chk-item"><input type="checkbox" class="officeout-day" value="שבת"> שבת</label>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
+        <div>
+          <label class="flabel">פעילות מחוץ למשרד 🏃</label>
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:4px;margin-top:4px">
+            <label class="chk-item"><input type="checkbox" class="officeout-day" value="ראשון"> ראשון</label>
+            <label class="chk-item"><input type="checkbox" class="officeout-day" value="שני"> שני</label>
+            <label class="chk-item"><input type="checkbox" class="officeout-day" value="שלישי"> שלישי</label>
+            <label class="chk-item"><input type="checkbox" class="officeout-day" value="רביעי"> רביעי</label>
+            <label class="chk-item"><input type="checkbox" class="officeout-day" value="חמישי"> חמישי</label>
+            <label class="chk-item"><input type="checkbox" class="officeout-day" value="שישי"> שישי</label>
+            <label class="chk-item"><input type="checkbox" class="officeout-day" value="שבת"> שבת</label>
+          </div>
+        </div>
+        <div>
+          <label class="flabel">הדרכה / חפיפה 📚</label>
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:4px;margin-top:4px">
+            <label class="chk-item"><input type="checkbox" class="training-day" value="ראשון"> ראשון</label>
+            <label class="chk-item"><input type="checkbox" class="training-day" value="שני"> שני</label>
+            <label class="chk-item"><input type="checkbox" class="training-day" value="שלישי"> שלישי</label>
+            <label class="chk-item"><input type="checkbox" class="training-day" value="רביעי"> רביעי</label>
+            <label class="chk-item"><input type="checkbox" class="training-day" value="חמישי"> חמישי</label>
+            <label class="chk-item"><input type="checkbox" class="training-day" value="שישי"> שישי</label>
+            <label class="chk-item"><input type="checkbox" class="training-day" value="שבת"> שבת</label>
+          </div>
+        </div>
       </div>
     </div>
     <div class="frow">
-      <label class="flabel">הדרכה / חפיפה 📚</label>
-      <div style="display:flex;flex-wrap:wrap;gap:5px;margin-top:4px">
-        <label class="chk-item"><input type="checkbox" class="training-day" value="ראשון"> ראשון</label>
-        <label class="chk-item"><input type="checkbox" class="training-day" value="שני"> שני</label>
-        <label class="chk-item"><input type="checkbox" class="training-day" value="שלישי"> שלישי</label>
-        <label class="chk-item"><input type="checkbox" class="training-day" value="רביעי"> רביעי</label>
-        <label class="chk-item"><input type="checkbox" class="training-day" value="חמישי"> חמישי</label>
-        <label class="chk-item"><input type="checkbox" class="training-day" value="שישי"> שישי</label>
-        <label class="chk-item"><input type="checkbox" class="training-day" value="שבת"> שבת</label>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;align-items:start">
+        <div>
+          <label class="flabel">תאריך לידה 🎂 (אופציונלי)</label>
+          <input class="finput" id="f_birthday" type="date" style="font-family:monospace;margin-top:4px">
+        </div>
+        <div>
+          <label class="flabel">סטטוס</label>
+          <div style="display:flex;gap:6px;margin-top:6px;flex-wrap:wrap">
+            <label style="display:flex;align-items:center;gap:4px;font-size:12px;cursor:pointer"><input type="radio" name="f_absence_type" value="none" checked style="accent-color:var(--blue)"> ✅ פעיל</label>
+            <label style="display:flex;align-items:center;gap:4px;font-size:12px;color:var(--amber);cursor:pointer"><input type="radio" name="f_absence_type" value="vacation" style="accent-color:var(--amber)"> 🏖️ חופש</label>
+            <label style="display:flex;align-items:center;gap:4px;font-size:12px;color:var(--red);cursor:pointer"><input type="radio" name="f_absence_type" value="sick" style="accent-color:var(--red)"> 🤒 מחלה</label>
+          </div>
+        </div>
       </div>
     </div>
-    <div class="frow">
-      <label class="flabel">תאריך לידה (אופציונלי) 🎂</label>
-      <input class="finput" id="f_birthday" type="date" style="font-family:monospace">
-    </div>
-    <div class="frow">
+    <div class="frow" id="absenceDaysWrap" style="display:none">
       <label class="flabel">ימי היעדרות (חופש / מחלה)</label>
       <div style="display:flex;flex-direction:column;gap:6px;margin-top:4px">
         <div id="absenceDaysGroup" style="display:flex;flex-wrap:wrap;gap:5px"></div>
