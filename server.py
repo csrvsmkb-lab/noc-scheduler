@@ -31,7 +31,7 @@ DB_FILE   = Path(__file__).parent / 'noc.db'
 FOLDER    = Path(__file__).parent
 DATABASE_URL = os.environ.get('DATABASE_URL', '')
 SESSION_TTL = 8 * 60 * 60  # 8 hours
-ADMIN_USERNAME = os.environ.get('ADMIN_USERNAME', 'admin')  # Only this user can create accounts
+ADMIN_USERNAME = os.environ.get('ADMIN_USERNAME', 'admin')
 
 # ─────────────────────────────────────────────────────────
 #  DATABASE
@@ -40,8 +40,9 @@ def get_db():
     if USE_PG and DATABASE_URL:
         conn = psycopg2.connect(DATABASE_URL, cursor_factory=psycopg2.extras.RealDictCursor)
         return conn
-    conn = sqlite3.connect(str(DB_FILE))
-    conn.row_factory = sqlite3.Row
+    import sqlite3 as _sqlite3
+    conn = _sqlite3.connect(str(DB_FILE))
+    conn.row_factory = _sqlite3.Row
     return conn
 
 def is_pg():
@@ -50,11 +51,9 @@ def is_pg():
 def execute_sql(db, sql):
     if is_pg():
         cur = db.cursor()
-        # Split and run each statement
         for stmt in sql.strip().split(';'):
             stmt = stmt.strip()
             if stmt:
-                # Convert SQLite syntax to PostgreSQL
                 stmt = stmt.replace('INTEGER PRIMARY KEY AUTOINCREMENT', 'SERIAL PRIMARY KEY')
                 stmt = stmt.replace("datetime('now')", 'NOW()')
                 stmt = stmt.replace('CREATE TABLE IF NOT EXISTS _migrate_done (id INTEGER PRIMARY KEY)', '')
@@ -69,7 +68,6 @@ def execute_sql(db, sql):
         db.executescript(sql)
 
 def pg_sql(sql):
-    """Convert SQLite ? to PostgreSQL %s"""
     return sql.replace("?", "%s")
 
 def fetchone(db, sql, params=()):
@@ -77,31 +75,32 @@ def fetchone(db, sql, params=()):
         cur = db.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
         cur.execute(pg_sql(sql), params)
         row = cur.fetchone()
-        # Convert to regular dict if needed
         return dict(row) if row else None
-    conn = sqlite3.connect(str(DB_FILE))
-    conn.row_factory = sqlite3.Row
-    return conn.execute(sql, params).fetchone()
+    cur = db.execute(sql, params)
+    row = cur.fetchone()
+    return dict(row) if row else None
+
 def fetchall(db, sql, params=()):
     if is_pg():
         cur = db.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
         cur.execute(pg_sql(sql), params)
         rows = cur.fetchall()
         return [dict(r) for r in rows] if rows else []
-    conn = sqlite3.connect(str(DB_FILE))
-    conn.row_factory = sqlite3.Row
-    return conn.execute(sql, params).fetchall()
+    cur = db.execute(sql, params)
+    rows = cur.fetchall()
+    return [dict(r) for r in rows] if rows else []
+
 def execute(db, sql, params=()):
     if is_pg():
         cur = db.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
         cur.execute(pg_sql(sql), params)
         db.commit()
         return cur
-    conn = sqlite3.connect(str(DB_FILE))
-    conn.row_factory = sqlite3.Row
-    return conn.execute(sql, params)
+    cur = db.execute(sql, params)
+    db.commit()
+    return cur
+
 def init_db():
-    # Reset DB if requested
     if not is_pg() and os.environ.get('RESET_DB') == '1' and DB_FILE.exists():
         DB_FILE.unlink()
         print("  Database reset!")
@@ -115,7 +114,6 @@ def init_db():
             created    TEXT DEFAULT (datetime('now')),
             last_login TEXT DEFAULT NULL
         );
-        -- Add is_admin column if upgrading from old db
         CREATE TABLE IF NOT EXISTS _migrate_done (id INTEGER PRIMARY KEY);
         CREATE TABLE IF NOT EXISTS sessions (
             token    TEXT PRIMARY KEY,
@@ -150,7 +148,7 @@ def init_db():
         );
         """
         execute_sql(db, sql)
-    # Migrate columns if missing
+
     for col_sql in [
         "ALTER TABLE users ADD COLUMN is_admin INTEGER DEFAULT 0",
         "ALTER TABLE users ADD COLUMN last_login TEXT DEFAULT NULL",
@@ -161,7 +159,6 @@ def init_db():
         except Exception:
             pass
 
-    # Auto-create or update admin user from environment
     admin_pass = os.environ.get('ADMIN_PASSWORD', 'admin1234')
     with get_db() as db:
         existing = fetchone(db, "SELECT id FROM users WHERE username=?", (ADMIN_USERNAME,))
@@ -179,18 +176,23 @@ def hash_password(pw):
     return hashlib.sha256(pw.encode()).hexdigest()
 
 def create_user(username, password):
+    """Returns True on success, False if username taken."""
     try:
         with get_db() as db:
             execute(db, "INSERT INTO users (username, password) VALUES (?,?)",
                       (username, hash_password(password)))
         return True
-    except sqlite3.IntegrityError:
-        return False  # username taken
+    except Exception as e:
+        # Catches both sqlite3.IntegrityError and psycopg2.IntegrityError
+        err = str(e).lower()
+        if 'unique' in err or 'duplicate' in err or 'integrity' in err:
+            return False
+        raise  # re-raise unexpected errors
 
 def check_user(username, password):
     with get_db() as db:
-        row = execute(db, "SELECT id FROM users WHERE username=? AND password=?",
-                        (username, hash_password(password))).fetchone()
+        row = fetchone(db, "SELECT id FROM users WHERE username=? AND password=?",
+                        (username, hash_password(password)))
         return row['id'] if row else None
 
 def user_exists(username):
@@ -208,9 +210,7 @@ def create_session(user_id):
 def get_session_user(token):
     if not token: return None
     with get_db() as db:
-        row = execute(db, 
-            "SELECT user_id, created FROM sessions WHERE token=?", (token,)
-        ).fetchone()
+        row = fetchone(db, "SELECT user_id, created FROM sessions WHERE token=?", (token,))
         if not row: return None
         created_val = row['created']
         if isinstance(created_val, str):
@@ -290,12 +290,15 @@ class Handler(http.server.BaseHTTPRequestHandler):
         pass  # suppress default logging
 
     def send_json(self, code, obj):
-        body = json.dumps(obj, ensure_ascii=False).encode('utf-8')
-        self.send_response(code)
-        self.send_header('Content-Type', 'application/json')
-        self.send_header('Content-Length', len(body))
-        self.end_headers()
-        self.wfile.write(body)
+        try:
+            body = json.dumps(obj, ensure_ascii=False).encode('utf-8')
+            self.send_response(code)
+            self.send_header('Content-Type', 'application/json')
+            self.send_header('Content-Length', len(body))
+            self.end_headers()
+            self.wfile.write(body)
+        except BrokenPipeError:
+            pass  # Client disconnected — ignore
 
     def do_OPTIONS(self):
         self.send_response(204)
@@ -309,17 +312,29 @@ class Handler(http.server.BaseHTTPRequestHandler):
         if path == '/api/me':
             if user_id:
                 with get_db() as db:
-                    row = fetchone(db, "SELECT username FROM users WHERE id=?", (user_id,))
+                    row = fetchone(db, "SELECT username, is_admin FROM users WHERE id=?", (user_id,))
                 username = row['username'] if row else ''
-                with get_db() as db2:
-                    urow = fetchone(db2, "SELECT is_admin FROM users WHERE id=?", (user_id,))
-                    is_admin_flag = bool(urow and urow['is_admin'])
-                return self.send_json(200, {'authed': True, 'username': username, 'isAdmin': is_admin_flag or username == ADMIN_USERNAME})
+                is_admin_flag = bool(row and (row.get('is_admin') or row['username'] == ADMIN_USERNAME))
+                return self.send_json(200, {'authed': True, 'username': username, 'isAdmin': is_admin_flag})
             return self.send_json(200, {'authed': False, 'isAdmin': False})
 
         if path == '/api/data':
             if not user_id: return self.send_json(401, {'error': 'לא מחובר'})
             return self.send_json(200, load_user_data(user_id))
+
+        # ── FIX: /api/users via GET (admin only) ─────────
+        if path == '/api/users':
+            if not user_id: return self.send_json(401, {'error': 'לא מחובר'})
+            with get_db() as db:
+                row = fetchone(db, "SELECT username, is_admin FROM users WHERE id=?", (user_id,))
+                if not row or (row['username'] != ADMIN_USERNAME and not row.get('is_admin')):
+                    return self.send_json(403, {'error': 'אין הרשאה'})
+                users = fetchall(db, "SELECT id, username, is_admin, created FROM users ORDER BY created")
+                return self.send_json(200, {'users': [
+                    {'id': u['id'], 'username': u['username'],
+                     'isAdmin': bool(u['is_admin']), 'created': u['created']}
+                    for u in users
+                ]})
 
         # Static files
         fp = path if path != '/' else '/index.html'
@@ -330,15 +345,22 @@ class Handler(http.server.BaseHTTPRequestHandler):
             self.send_response(403); self.end_headers(); return
 
         if file_path.exists() and file_path.is_file():
-            data = file_path.read_bytes()
-            self.send_response(200)
-            self.send_header('Content-Type', MIME.get(file_path.suffix, 'application/octet-stream'))
-            self.send_header('Content-Length', len(data))
-            self.end_headers()
-            self.wfile.write(data)
+            try:
+                data = file_path.read_bytes()
+                self.send_response(200)
+                self.send_header('Content-Type', MIME.get(file_path.suffix, 'application/octet-stream'))
+                self.send_header('Content-Length', len(data))
+                self.end_headers()
+                self.wfile.write(data)
+            except BrokenPipeError:
+                pass
         else:
-            self.send_response(404); self.end_headers()
-            self.wfile.write(b'Not found')
+            self.send_response(404)
+            self.end_headers()
+            try:
+                self.wfile.write(b'Not found')
+            except BrokenPipeError:
+                pass
 
     def do_POST(self):
         path = self.path.split('?')[0]
@@ -352,14 +374,12 @@ class Handler(http.server.BaseHTTPRequestHandler):
 
         # ── Register (admin only) ─────────────────────────
         if path == '/api/register':
-            # Check if requester is admin
             req_user_id = get_session_user(token)
             is_admin = False
             if req_user_id:
                 with get_db() as db:
-                    row = fetchone(db, "SELECT username FROM users WHERE id=?", (req_user_id,))
-                    is_admin = row and (row['username'] == ADMIN_USERNAME or bool(row.get('is_admin', 0) if hasattr(row,'get') else row['is_admin']))
-            # Allow first user creation (no users yet) or admin
+                    row = fetchone(db, "SELECT username, is_admin FROM users WHERE id=?", (req_user_id,))
+                    is_admin = bool(row and (row['username'] == ADMIN_USERNAME or row.get('is_admin')))
             if not is_admin and count_users() > 0:
                 return self.send_json(403, {'error': 'רק מנהל המערכת יכול ליצור משתמשים'})
             username = payload.get('username','').strip()
@@ -370,22 +390,23 @@ class Handler(http.server.BaseHTTPRequestHandler):
                 return self.send_json(400, {'error': 'סיסמה חייבת להיות לפחות 4 תווים'})
             new_user_is_admin = payload.get('is_admin', False)
             if create_user(username, password):
-                # Set admin flag if requested
                 if new_user_is_admin:
                     with get_db() as db:
                         execute(db, "UPDATE users SET is_admin=1 WHERE username=?", (username,))
-                # If admin is creating, don't auto-login as new user
                 if is_admin:
                     return self.send_json(200, {'ok': True, 'created': username})
                 uid = check_user(username, password)
                 t = create_session(uid)
-                self.send_response(200)
-                self.send_header('Content-Type', 'application/json')
-                self.send_header('Set-Cookie', f'noc_session={t}; HttpOnly; Path=/; Max-Age={SESSION_TTL}')
-                body_out = json.dumps({'ok': True}).encode()
-                self.send_header('Content-Length', len(body_out))
-                self.end_headers()
-                self.wfile.write(body_out)
+                try:
+                    body_out = json.dumps({'ok': True}).encode()
+                    self.send_response(200)
+                    self.send_header('Content-Type', 'application/json')
+                    self.send_header('Set-Cookie', f'noc_session={t}; HttpOnly; Path=/; Max-Age={SESSION_TTL}')
+                    self.send_header('Content-Length', len(body_out))
+                    self.end_headers()
+                    self.wfile.write(body_out)
+                except BrokenPipeError:
+                    pass
             else:
                 self.send_json(409, {'error': 'שם המשתמש תפוס, נסה אחר'})
             return
@@ -395,35 +416,42 @@ class Handler(http.server.BaseHTTPRequestHandler):
             uid = check_user(payload.get('username',''), payload.get('password',''))
             if uid:
                 t = create_session(uid)
-                self.send_response(200)
-                self.send_header('Content-Type', 'application/json')
-                self.send_header('Set-Cookie', f'noc_session={t}; HttpOnly; Path=/; Max-Age={SESSION_TTL}')
-                body_out = json.dumps({'ok': True}).encode()
-                self.send_header('Content-Length', len(body_out))
-                self.end_headers()
-                self.wfile.write(body_out)
+                try:
+                    body_out = json.dumps({'ok': True}).encode()
+                    self.send_response(200)
+                    self.send_header('Content-Type', 'application/json')
+                    self.send_header('Set-Cookie', f'noc_session={t}; HttpOnly; Path=/; Max-Age={SESSION_TTL}')
+                    self.send_header('Content-Length', len(body_out))
+                    self.end_headers()
+                    self.wfile.write(body_out)
+                except BrokenPipeError:
+                    pass
             else:
                 self.send_json(401, {'error': 'שם משתמש או סיסמה שגויים'})
             return
 
-        # ── List users (admin only) ───────────────────────
+        # ── List users via POST (admin only) ──────────────
         if path == '/api/users':
             req_user_id = get_session_user(token)
             if not req_user_id: return self.send_json(401, {'error': 'לא מחובר'})
             with get_db() as db:
-                row = fetchone(db, "SELECT username FROM users WHERE id=?", (req_user_id,))
-                if not row or row['username'] != ADMIN_USERNAME:
+                row = fetchone(db, "SELECT username, is_admin FROM users WHERE id=?", (req_user_id,))
+                if not row or (row['username'] != ADMIN_USERNAME and not row.get('is_admin')):
                     return self.send_json(403, {'error': 'אין הרשאה'})
                 users = fetchall(db, "SELECT id, username, is_admin, created FROM users ORDER BY created")
-                return self.send_json(200, {'users': [{'id':u['id'],'username':u['username'],'isAdmin':bool(u['is_admin']),'created':u['created']} for u in users]})
+                return self.send_json(200, {'users': [
+                    {'id': u['id'], 'username': u['username'],
+                     'isAdmin': bool(u['is_admin']), 'created': u['created']}
+                    for u in users
+                ]})
 
-        # ── Change password (admin only) ─────────────────
+        # ── Change password (admin only) ──────────────────
         if path == '/api/change-password':
             req_user_id = get_session_user(token)
             if not req_user_id: return self.send_json(401, {'error': 'לא מחובר'})
             with get_db() as db:
                 row = fetchone(db, "SELECT username, is_admin FROM users WHERE id=?", (req_user_id,))
-                if not row or (row['username'] != ADMIN_USERNAME and not row['is_admin']):
+                if not row or (row['username'] != ADMIN_USERNAME and not row.get('is_admin')):
                     return self.send_json(403, {'error': 'אין הרשאה'})
                 target_id = payload.get('user_id')
                 new_pass  = payload.get('new_password','')
@@ -432,17 +460,17 @@ class Handler(http.server.BaseHTTPRequestHandler):
                 execute(db, "UPDATE users SET password=? WHERE id=?", (hash_password(new_pass), target_id))
             return self.send_json(200, {'ok': True})
 
-        # ── Set admin (admin only) ───────────────────────
+        # ── Set admin (admin only) ────────────────────────
         if path == '/api/set-admin':
             req_user_id = get_session_user(token)
             if not req_user_id: return self.send_json(401, {'error': 'לא מחובר'})
             with get_db() as db:
                 row = fetchone(db, "SELECT username, is_admin FROM users WHERE id=?", (req_user_id,))
-                if not row or (row['username'] != ADMIN_USERNAME and not row['is_admin']):
+                if not row or (row['username'] != ADMIN_USERNAME and not row.get('is_admin')):
                     return self.send_json(403, {'error': 'אין הרשאה'})
                 target_id  = payload.get('user_id')
-                is_admin   = payload.get('is_admin', False)
-                execute(db, "UPDATE users SET is_admin=? WHERE id=?", (1 if is_admin else 0, target_id))
+                is_admin_v = payload.get('is_admin', False)
+                execute(db, "UPDATE users SET is_admin=? WHERE id=?", (1 if is_admin_v else 0, target_id))
             return self.send_json(200, {'ok': True})
 
         # ── Delete user (admin only) ──────────────────────
@@ -465,13 +493,16 @@ class Handler(http.server.BaseHTTPRequestHandler):
         # ── Logout ────────────────────────────────────────
         if path == '/api/logout':
             if token: delete_session(token)
-            self.send_response(200)
-            self.send_header('Content-Type', 'application/json')
-            self.send_header('Set-Cookie', 'noc_session=; HttpOnly; Path=/; Max-Age=0')
-            body_out = json.dumps({'ok': True}).encode()
-            self.send_header('Content-Length', len(body_out))
-            self.end_headers()
-            self.wfile.write(body_out)
+            try:
+                body_out = json.dumps({'ok': True}).encode()
+                self.send_response(200)
+                self.send_header('Content-Type', 'application/json')
+                self.send_header('Set-Cookie', 'noc_session=; HttpOnly; Path=/; Max-Age=0')
+                self.send_header('Content-Length', len(body_out))
+                self.end_headers()
+                self.wfile.write(body_out)
+            except BrokenPipeError:
+                pass
             return
 
         # ── Protected routes ──────────────────────────────
@@ -492,7 +523,7 @@ class Handler(http.server.BaseHTTPRequestHandler):
             save_user_data(user_id, d)
             return self.send_json(200, {'ok': True})
 
-        # ── List saved schedules (POST) ──────────────────
+        # ── List saved schedules ──────────────────────────
         if path == '/api/schedules/list':
             with get_db() as db:
                 rows = fetchall(db, "SELECT id,name,week_start,created FROM saved_schedules WHERE user_id=? ORDER BY created DESC LIMIT 20", (user_id,))
@@ -507,12 +538,6 @@ class Handler(http.server.BaseHTTPRequestHandler):
                 execute(db, "INSERT INTO saved_schedules (user_id,name,week_start,schedule_data) VALUES (?,?,?,?)",
                        (user_id, name, week_start, data))
             return self.send_json(200, {'ok': True})
-
-        # ── List saved schedules ──────────────────────────
-        if path == '/api/schedules/list':
-            with get_db() as db:
-                rows = fetchall(db, "SELECT id,name,week_start,created FROM saved_schedules WHERE user_id=? ORDER BY created DESC LIMIT 20", (user_id,))
-            return self.send_json(200, {'schedules': [dict(r) for r in rows]})
 
         # ── Load saved schedule ───────────────────────────
         if path == '/api/schedules/load':
@@ -537,7 +562,6 @@ class Handler(http.server.BaseHTTPRequestHandler):
             shift = payload.get('shift','')
             note  = payload.get('note','')
             with get_db() as db:
-                # Upsert - delete existing and insert new
                 execute(db, "DELETE FROM shift_notes WHERE user_id=? AND week_start=? AND day=? AND shift=?",
                        (user_id, week_start, day, shift))
                 if note.strip():
