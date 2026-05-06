@@ -163,7 +163,13 @@ table.sgrid td.nc{text-align:right;font-weight:500;background:var(--s2);color:va
   #forceAssignWrap,
   .sched-wrap > .stats-row,
   [id="forceAssignWrap"] { display:none!important }
-
+table.sgrid td.nc, table.sgrid th.nc {
+    max-width: 45px !important;
+    font-size: 6.5px !important;
+    white-space: normal !important;
+    word-break: break-all !important;
+    padding: 2px 2px !important;
+  }
   /* Page setup — landscape, tight margins */
   @page {
     size: A4 landscape;
