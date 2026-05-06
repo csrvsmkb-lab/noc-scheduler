@@ -417,6 +417,12 @@ class Handler(http.server.BaseHTTPRequestHandler):
             if len(password) < 4:
                 return self.send_json(400, {'error': 'סיסמה חייבת להיות לפחות 4 תווים'})
             new_user_is_admin = payload.get('is_admin', False)
+            # Only super-admin (ADMIN_USERNAME) can create other admins
+            with get_db() as db:
+                req_row = fetchone(db, "SELECT username FROM users WHERE id=?", (req_user_id,)) if req_user_id else None
+                is_super_admin = req_row and req_row['username'] == ADMIN_USERNAME
+            if new_user_is_admin and not is_super_admin:
+                new_user_is_admin = False  # Regular managers can only create workers
             if create_user(username, password):
                 if new_user_is_admin:
                     with get_db() as db:
@@ -663,6 +669,18 @@ class Handler(http.server.BaseHTTPRequestHandler):
                     data = load_user_data(admin_row['id'])
                     return self.send_json(200, {'username': username, 'schedule': data.get('lastSchedule',{}), 'generated': data.get('lastGenerated','')})
             return self.send_json(200, {'username': '', 'schedule': {}, 'generated': ''})
+
+        # ── Get workers list for employee dropdown ────────
+        if path == '/api/workers-list':
+            if not user_id: return self.send_json(401, {'error': 'לא מחובר'})
+            # Get workers from admin's data
+            with get_db() as db:
+                admin_row = fetchone(db, "SELECT id FROM users WHERE username=?", (ADMIN_USERNAME,))
+                if admin_row:
+                    data = load_user_data(admin_row['id'])
+                    workers = [{'name': w['name'], 'role': w.get('role','')} for w in data.get('workers', [])]
+                    return self.send_json(200, {'workers': workers})
+            return self.send_json(200, {'workers': []})
 
         self.send_json(404, {'error': 'Not found'})
 

@@ -461,15 +461,21 @@ td.locked-cell::after{content:'🔒';position:absolute;top:1px;right:1px;font-si
       </div>
     </div>
     <div style="border-top:1px solid var(--border);padding-top:14px">
-      <div style="font-size:12px;font-weight:600;margin-bottom:10px">+ יצירת משתמש חדש</div>
-      <div style="display:flex;gap:8px;margin-bottom:8px">
-        <input class="finput" id="newUsername" placeholder="שם משתמש" style="flex:1">
-        <input class="finput" id="newUserPass" type="password" placeholder="סיסמה" style="flex:1">
+      <div style="font-size:12px;font-weight:600;margin-bottom:10px">+ יצירת משתמש חדש לעובד</div>
+      <div style="margin-bottom:8px">
+        <label class="flabel">בחר עובד מהרשימה</label>
+        <select class="finput" id="newWorkerSelect" style="margin-top:4px" onchange="onWorkerSelectChange()">
+          <option value="">— בחר עובד —</option>
+        </select>
       </div>
-      <label style="display:flex;align-items:center;gap:6px;font-size:12px;color:var(--muted);margin-bottom:10px;cursor:pointer">
+      <div style="display:flex;gap:8px;margin-bottom:8px">
+        <input class="finput" id="newUsername" placeholder="שם משתמש (עברית)" style="flex:1">
+        <input class="finput" id="newUserPass" type="password" placeholder="סיסמה (מינ׳ 4)" style="flex:1">
+      </div>
+      <label id="adminCheckWrap" style="display:none;align-items:center;gap:6px;font-size:12px;color:var(--muted);margin-bottom:10px;cursor:pointer">
         <input type="checkbox" id="newUserIsAdmin" style="accent-color:var(--blue)"> הגדר כמנהל מערכת
       </label>
-      <button class="btn-save" style="width:100%" onclick="createUser()">+ צור משתמש</button>
+      <button class="btn-save" style="width:100%" onclick="createUser()">+ צור משתמש לעובד</button>
       <div id="adminMsg" style="font-size:12px;margin-top:8px;display:none"></div>
     </div>
     <div class="mactions" style="margin-top:12px">
@@ -749,6 +755,7 @@ async function doLogout(){
   document.getElementById('adminBtn').style.display='none';
 }
 function showApp(username){
+  window._myUsername = username;
   document.getElementById('loginScreen').style.display='none';
   document.getElementById('appScreen').classList.add('vis');
   if(username) document.getElementById('userChip').textContent=username;
@@ -1514,6 +1521,13 @@ let changePwUserId = null;
 
 async function openAdminPanel(){
   document.getElementById('adminMsg').style.display='none';
+  // Show admin checkbox only for super-admin
+  const meR=await fetch('/api/me');
+  const meD=await meR.json();
+  const isSuperAdmin=meD.isAdmin&&meD.username&&meD.username===window._myUsername;
+  const adminWrap=document.getElementById('adminCheckWrap');
+  if(adminWrap) adminWrap.style.display=isSuperAdmin?'flex':'none';
+  await loadWorkerDropdown();
   document.getElementById('changePwBox').style.display='none';
   document.getElementById('newUsername').value='';
   document.getElementById('newUserPass').value='';
@@ -1580,18 +1594,49 @@ async function toggleAdmin(id,makeAdmin){
 async function createUser(){
   const username=document.getElementById('newUsername').value.trim();
   const password=document.getElementById('newUserPass').value;
-  const isAdmin=document.getElementById('newUserIsAdmin').checked;
+  const isAdminEl=document.getElementById('newUserIsAdmin');
+  const isAdmin=isAdminEl&&isAdminEl.checked;
   if(!username||!password){ showAdminMsg('נא למלא שם וסיסמה','var(--red)'); return; }
   if(password.length<4){ showAdminMsg('סיסמה חייבת 4+ תווים','var(--red)'); return; }
   const r=await fetch('/api/register',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({username,password,is_admin:isAdmin})});
   const d=await r.json();
   if(d.ok){
-    showAdminMsg(`✓ "${username}" נוצר`,'var(--teal)');
+    showAdminMsg(`✓ עובד "${username}" קיבל גישה למערכת`,'var(--teal)');
     document.getElementById('newUsername').value='';
     document.getElementById('newUserPass').value='';
-    document.getElementById('newUserIsAdmin').checked=false;
+    document.getElementById('newWorkerSelect').value='';
+    if(isAdminEl) isAdminEl.checked=false;
     await loadAdminUsers();
   } else showAdminMsg(d.error||'שגיאה','var(--red)');
+}
+
+function onWorkerSelectChange(){
+  const sel=document.getElementById('newWorkerSelect');
+  const inp=document.getElementById('newUsername');
+  if(sel.value) inp.value=sel.value;
+}
+
+async function loadWorkerDropdown(){
+  try {
+    const r=await fetch('/api/workers-list',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({})});
+    const d=await r.json();
+    const sel=document.getElementById('newWorkerSelect');
+    if(!sel) return;
+    // Get existing users to mark who already has access
+    const usersR=await fetch('/api/users');
+    const usersD=await usersR.json();
+    const existingUsers=new Set((usersD.users||[]).map(u=>u.username));
+    sel.innerHTML='<option value="">— בחר עובד —</option>';
+    (d.workers||[]).forEach(w=>{
+      const hasAccess=existingUsers.has(w.name);
+      const opt=document.createElement('option');
+      opt.value=w.name;
+      opt.textContent=w.name+(w.role?' ('+w.role+')':'')+(hasAccess?' ✓':'');
+      opt.disabled=hasAccess;
+      opt.style.color=hasAccess?'var(--muted)':'var(--text)';
+      sel.appendChild(opt);
+    });
+  } catch(e){}
 }
 
 async function deleteUser(id,username){
@@ -2451,22 +2496,55 @@ async function wpLoadSchedule(){
     const uname=d.username||wpCurrentUser;
     const gen=d.generated?new Date(d.generated).toLocaleDateString('he-IL'):'';
     if(!sched||!Object.keys(sched).length){
-      c.innerHTML='<div style="text-align:center;color:var(--muted);padding:24px;font-size:13px">הסידור טרם פורסם. נסה מאוחר יותר.</div>';
+      c.innerHTML='<div style="text-align:center;color:var(--muted);padding:24px;font-size:13px">הסידור טרם פורסם. המנהל עדיין מכין את הסידור.</div>';
       return;
     }
     const shColors={'בוקר':'background:#dbeafe;color:#1e40af','צהריים':'background:#d1fae5;color:#065f46','לילה':'background:#fef3c7;color:#92400e'};
-    let total=0;
+    // Collect ALL workers from schedule
+    const allWorkers=new Set();
+    Object.values(sched).forEach(day=>Object.values(day).forEach(arr=>arr.forEach(w=>allWorkers.add(w))));
+    const shiftNames=Object.keys(Object.values(sched)[0]||{});
     let html=gen?`<div style="font-size:11px;color:var(--muted);margin-bottom:12px;text-align:center">עודכן: ${gen}</div>`:'';
-    html+=WP_DAYS.map(day=>{
-      const allShifts=Object.keys(sched[day]||{});
-      const myShift=allShifts.find(sh=>(sched[day][sh]||[]).includes(uname));
-      if(myShift) total++;
-      return `<div class="wp-schedule-row">
-        <div style="font-size:13px;font-weight:500">${day}</div>
-        <div>${myShift?`<span class="wp-shift-badge" style="${shColors[myShift]||'background:var(--s3)'}">${myShift}</span>`:'<span style="font-size:12px;color:var(--muted)">— חופש</span>'}</div>
-      </div>`;
-    }).join('');
-    html+=`<div style="margin-top:12px;padding-top:10px;border-top:1px solid var(--border);font-size:12px;color:var(--muted);text-align:center">סה״כ ${total} משמרות השבוע</div>`;
+
+    // My summary first
+    let myTotal=0;
+    const myDays=WP_DAYS.map(day=>{const sh=shiftNames.find(s=>(sched[day]?.[s]||[]).includes(uname));if(sh)myTotal++;return sh;});
+    html+=`<div style="background:rgba(26,110,245,.06);border:1px solid rgba(26,110,245,.2);border-radius:9px;padding:12px;margin-bottom:14px">
+      <div style="font-size:13px;font-weight:600;color:var(--blue);margin-bottom:8px">📋 המשמרות שלי — ${uname}</div>
+      <div style="display:flex;gap:4px;flex-wrap:wrap;">
+        ${WP_DAYS.map((day,i)=>myDays[i]?
+          `<div style="text-align:center;min-width:52px"><div style="font-size:9px;color:var(--muted);margin-bottom:2px">${day.slice(0,2)}</div><span class="wp-shift-badge" style="${shColors[myDays[i]]||'background:var(--s3)'};font-size:11px;padding:3px 6px">${myDays[i].slice(0,2)}</span></div>`:
+          `<div style="text-align:center;min-width:52px"><div style="font-size:9px;color:var(--muted);margin-bottom:2px">${day.slice(0,2)}</div><span style="font-size:11px;color:var(--dim)">—</span></div>`
+        ).join('')}
+      </div>
+      <div style="font-size:11px;color:var(--muted);margin-top:8px">סה״כ ${myTotal} משמרות</div>
+    </div>`;
+
+    // Full team schedule as table
+    html+=`<div style="font-size:12px;font-weight:600;color:var(--muted);margin-bottom:8px">לוח הצוות המלא</div>`;
+    html+=`<div style="overflow-x:auto"><table style="width:100%;border-collapse:collapse;font-size:11px">
+      <thead><tr style="background:var(--s2)">
+        <th style="padding:6px 8px;text-align:right;border:1px solid var(--border);font-weight:600">עובד</th>
+        ${WP_DAYS.map(d=>`<th style="padding:6px 4px;text-align:center;border:1px solid var(--border);font-weight:600">${d.slice(0,2)}</th>`).join('')}
+      </tr></thead><tbody>`;
+
+    [...allWorkers].sort().forEach(worker=>{
+      const isMe=worker===uname;
+      const bgRow=isMe?'background:rgba(26,110,245,.06)':'';
+      html+=`<tr style="${bgRow}">
+        <td style="padding:5px 8px;border:1px solid var(--border);font-weight:${isMe?'700':'400'};color:${isMe?'var(--blue)':'var(--text)'}">
+          ${isMe?'👤 ':''} ${worker}
+        </td>
+        ${WP_DAYS.map(day=>{
+          const sh=shiftNames.find(s=>(sched[day]?.[s]||[]).includes(worker));
+          const style=sh?(shColors[sh]||''):'';
+          return `<td style="padding:4px;text-align:center;border:1px solid var(--border);${style}">
+            ${sh?`<span style="font-size:10px;font-weight:600">${sh.slice(0,2)}</span>`:'<span style="color:var(--dim);font-size:10px">—</span>'}
+          </td>`;
+        }).join('')}
+      </tr>`;
+    });
+    html+='</tbody></table></div>';
     c.innerHTML=html;
   } catch(e){
     c.innerHTML='<div style="text-align:center;color:var(--red);padding:20px">שגיאה בטעינת הסידור</div>';
