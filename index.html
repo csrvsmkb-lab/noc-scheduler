@@ -260,6 +260,17 @@ table.sgrid td.nc{text-align:right;font-weight:500;background:var(--s2);color:va
 .force-worker-row:last-child{border-bottom:none}
 .force-badge{font-size:10px;padding:2px 6px;border-radius:4px;margin-right:4px}
 
+
+/* DAY-PREF TABLE */
+.daypref-table{width:100%;border-collapse:collapse;font-size:12px;margin-top:6px}
+.daypref-table th{background:var(--s2);padding:5px 6px;text-align:center;font-weight:600;font-size:11px;color:var(--muted);border:1px solid var(--border)}
+.daypref-table td{padding:4px 3px;text-align:center;border:1px solid var(--border)}
+.daypref-table select{font-size:11px;background:var(--s3);border:1px solid var(--border2);border-radius:4px;padding:2px 4px;color:var(--text);font-family:inherit;width:100%}
+
+/* LOCKED CELLS */
+td.locked-cell{position:relative}
+td.locked-cell::after{content:'🔒';position:absolute;top:1px;right:1px;font-size:8px;line-height:1}
+
 </style>
 </head>
 <body>
@@ -465,6 +476,13 @@ table.sgrid td.nc{text-align:right;font-weight:500;background:var(--s2);color:va
     <div class="frow">
       <label class="flabel">משמרות מועדפות</label>
       <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:4px" id="prefShiftsGroup"></div>
+    </div>
+    <div class="frow" id="dayPrefWrap">
+      <label class="flabel">העדפת משמרת לפי יום (אופציונלי)</label>
+      <table class="daypref-table" id="dayPrefTable">
+        <thead><tr id="dayPrefHeader"></tr></thead>
+        <tbody><tr id="dayPrefRow"></tr></tbody>
+      </table>
     </div>
     <div class="frow"><label class="flabel">הגבלות אישיות (אופציונלי)</label><input class="finput" id="f_notes" placeholder="למשל: לא יותר מ-2 לילות בשבת"></div>
     <div class="frow">
@@ -807,6 +825,7 @@ function openModal(){
   document.querySelectorAll('.abs-day').forEach(c=>c.checked=false);
   const absWrap=document.getElementById('absenceDaysWrap');
   if(absWrap) absWrap.style.display='none';
+  initDayPrefTable({});
   document.getElementById('overlay').classList.add('open');
 }
 
@@ -830,6 +849,7 @@ function editWorker(id){
   document.querySelectorAll('.abs-day').forEach(c=>{c.checked=absDays.includes(c.value);});
   const wrapEl=document.getElementById('absenceDaysWrap');
   if(wrapEl) wrapEl.style.display=(absType!=='none')?'block':'none';
+  initDayPrefTable(w.dayPrefs||{});
   document.getElementById('overlay').classList.add('open');
 }
 
@@ -861,6 +881,7 @@ function saveWorker(){
     trainingDays:[...document.querySelectorAll('.training-day:checked')].map(c=>c.value),
     absenceType: absType,
     absenceDays: absDays,
+    dayPrefs: getDayPrefs(),
     status: absDays.length===7 ? absType : (absType!=='none'&&absDays.length>0 ? 'partial' : 'active'),
   };
   if(editingId!==null){
@@ -924,6 +945,25 @@ function runAlgorithm(C){
     return n;
   }
 
+  // Pre-fill locked slots FIRST
+  for(const d of DAYS){
+    for(const sh of getShiftNames()){
+      const key = d+'|'+sh;
+      if(lockedSlots[key]){
+        for(const wname of lockedSlots[key]){
+          if(!schedule[d][sh].includes(wname)){
+            schedule[d][sh].push(wname);
+            const di2=DAYS.indexOf(d); const isWE2=WEEKEND_DAYS.has(d);
+            const c2=st[wname];
+            if(c2){ c2.total++; c2.byDay[di2]=sh;
+              if(sh===getShiftNames()[getShiftNames().length-1]) c2.nights++;
+              if(isWE2) c2.weekend++; else c2.weekdays++; }
+          }
+        }
+      }
+    }
+  }
+
   // Multi-pass: run twice to fill gaps
   for(let pass=0; pass<2; pass++){
   for(let di=0; di<DAYS.length; di++){
@@ -934,13 +974,20 @@ function runAlgorithm(C){
       const isNight   = getShiftNames().indexOf(sh)===getShiftNames().length-1;
       const isMorning = getShiftNames().indexOf(sh)===0;
 
+      // Skip if slot is locked and already filled
+      const slotLockKey = day+'|'+sh;
+      if(lockedSlots[slotLockKey] && schedule[day][sh].length >= C.cover) continue;
+
       const candidates = workers.map(w=>{
         const c = st[w.name];
+        // Skip if already assigned via lock
+        if(lockedSlots[slotLockKey]&&lockedSlots[slotLockKey].includes(w.name)) return null;
 
         // Hard constraints
         if(w.absenceDays&&w.absenceDays.includes(day)) return null;
         if((w.status==='vacation'||w.status==='sick')&&(!w.absenceDays||w.absenceDays.length===0)) return null;
         if(w.blockedDays.includes(day)) return null;
+        if((w.dayPrefs||{})[day]==='off') return null; // day-specific block
         if(c.byDay[di]!==null) return null;
         if(isMorning && di>0 && didNight(w.name,di-1)) return null;
         if(consecutiveBefore(w.name,di) >= C.consec) return null;
@@ -949,7 +996,13 @@ function runAlgorithm(C){
 
         // Soft score — lower = more preferred
         let score = c.total * 80;
-        if(w.prefShifts.length && !w.prefShifts.includes(sh)) score += 15;
+        // Day-specific preference (stronger than general pref)
+        const dayPref = (w.dayPrefs||{})[day];
+        if(dayPref && dayPref !== 'any'){
+          if(sh !== dayPref) score += 60; // strong penalty for wrong shift on this day
+        } else if(w.prefShifts.length && !w.prefShifts.includes(sh)){
+          score += 15;
+        }
         if(isNight) score += c.nights * 20;
         if(isWE)    score += c.weekend * 15;
         score += Math.random() * 5;
@@ -1104,7 +1157,9 @@ function renderSchedule(result, fromCache){
       const cellBg=isBday?'rgba(255,180,0,.08)':isOfficeOut?'rgba(56,139,253,.06)':isTraining?'rgba(57,208,160,.06)':'';
       const snKey=w.name+'__'+d+'__'+sh;
       const hasShiftNote=!!shiftNotesCache[snKey];
-      if(assigned) html+=`<td style="${br}${cellBg?`;background:${cellBg}`:''}cursor:pointer" onclick="openShiftNote('${w.name.replace(/'/g,"\'")}','${d}','${sh}')" title="${tip||'לחץ להוספת הערה'}"><span class="pill p${getShiftCode(sh)}">${sh==='בוקר'?'ב':sh==='צהריים'?'צ':'ל'}</span><span style="font-size:9px;display:block;text-align:center;margin-top:-2px">${hasShiftNote?'💬':cellBadge}</span></td>`;
+      const lockKey=d+'|'+sh;
+      const isLocked=lockedSlots[lockKey]&&lockedSlots[lockKey].includes(w.name);
+      if(assigned) html+=`<td class="${isLocked?'locked-cell':''}" style="${br}${cellBg?`;background:${cellBg}`:''}cursor:pointer" onclick="openShiftNote('${w.name.replace(/'/g,"\'")}','${d}','${sh}')" title="${isLocked?'🔒 משמרת נעולה — '+tip:tip||'לחץ להוספת הערה'}"><span class="pill p${getShiftCode(sh)}">${sh==='בוקר'?'ב':sh==='צהריים'?'צ':'ל'}</span><span style="font-size:9px;display:block;text-align:center;margin-top:-2px">${isLocked?'🔒':hasShiftNote?'💬':cellBadge}</span></td>`;
       else if(isDayAbsent) html+=`<td style="background:rgba(240,167,66,.07);${br}" title="${w.absenceType==='vacation'?'חופש':'מחלה'}"><span style="font-size:12px">${absIcon}</span></td>`;
       else if(isOfficeOut&&!blocked) html+=`<td style="background:rgba(56,139,253,.06);${br}" title="🏃 מחוץ למשרד"><span style="font-size:12px">🏃</span></td>`;
       else if(isTraining&&!blocked) html+=`<td style="background:rgba(57,208,160,.06);${br}" title="📚 הדרכה/חפיפה"><span style="font-size:12px">📚</span></td>`;
@@ -1519,6 +1574,7 @@ initWeekDate();
       showApp(d.username);
       await loadState();
       await loadNotes();
+      loadLockedSlots();
     }
   } catch(e){}
 })();
@@ -2069,6 +2125,77 @@ function buildAIExplanation(schedule, stats, rejectionLog){
   aiBody.innerHTML = html;
   aiBox.classList.add('vis');
 }
+
+
+// ═══════════════════════════════════════════════════════
+//  DAY PREFERENCE TABLE
+// ═══════════════════════════════════════════════════════
+function initDayPrefTable(existingPrefs){
+  const shifts = getShiftNames();
+  const hdr = document.getElementById('dayPrefHeader');
+  const row = document.getElementById('dayPrefRow');
+  if(!hdr||!row) return;
+
+  hdr.innerHTML = '<th style="font-size:10px">יום</th>' + DAYS.map(d=>`<th>${d.slice(0,2)}</th>`).join('');
+  row.innerHTML = '<td style="font-size:10px;color:var(--muted);padding:4px 6px">משמרת</td>' + DAYS.map(d=>{
+    const val = existingPrefs[d]||'any';
+    return `<td><select class="day-pref-sel" data-day="${d}">
+      <option value="any" ${val==='any'?'selected':''}>כלשהי</option>
+      ${shifts.map(sh=>`<option value="${sh}" ${val===sh?'selected':''}>${sh.slice(0,3)}</option>`).join('')}
+      <option value="off" ${val==='off'?'selected':''}>לא לשבץ</option>
+    </select></td>`;
+  }).join('');
+}
+
+function getDayPrefs(){
+  const prefs = {};
+  document.querySelectorAll('.day-pref-sel').forEach(sel=>{
+    if(sel.value !== 'any') prefs[sel.dataset.day] = sel.value;
+  });
+  return prefs;
+}
+
+// ═══════════════════════════════════════════════════════
+//  LOCKED SLOTS — persist in workers data
+// ═══════════════════════════════════════════════════════
+let lockedSlots = {}; // key: "day|shift" -> [workerNames]
+
+function toggleLockSlot(workerName, day, shift){
+  const key = day+'|'+shift;
+  if(!lockedSlots[key]) lockedSlots[key]=[];
+  const idx = lockedSlots[key].indexOf(workerName);
+  if(idx>-1){
+    lockedSlots[key].splice(idx,1);
+    if(!lockedSlots[key].length) delete lockedSlots[key];
+    showToast(`🔓 נעילה הוסרה — ${workerName} ${day} ${shift}`);
+  } else {
+    lockedSlots[key].push(workerName);
+    showToast(`🔒 נעול — ${workerName} ${day} ${shift}`);
+  }
+  saveLockedSlots();
+  if(lastSchedule) renderSchedule({schedule:lastSchedule,stats:lastStats,violations:[],notes:null,rejectionLog:lastRejectionLog},true);
+}
+
+function saveLockedSlots(){
+  try{ localStorage.setItem('noc_locked_slots_'+currentWeekStart(), JSON.stringify(lockedSlots)); }catch(e){}
+}
+
+function loadLockedSlots(){
+  try{ lockedSlots=JSON.parse(localStorage.getItem('noc_locked_slots_'+currentWeekStart())||'{}'); }catch(e){ lockedSlots={}; }
+}
+
+function currentWeekStart(){
+  return document.getElementById('weekStartDate')?.value||'';
+}
+
+// Hook into weekStartDate change to reload locks
+document.getElementById('weekStartDate')?.addEventListener('change', ()=>{
+  loadLockedSlots();
+  if(lastSchedule) renderSchedule({schedule:lastSchedule,stats:lastStats,violations:[],notes:null,rejectionLog:lastRejectionLog},true);
+});
+
+// Also add "off" day pref as hard constraint — worker won't be assigned that day
+// This is handled in algorithm via dayPrefs[day]==='off'
 
 </script>
 <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
