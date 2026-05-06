@@ -68,28 +68,35 @@ def execute_sql(db, sql):
     else:
         db.executescript(sql)
 
+def pg_sql(sql):
+    """Convert SQLite ? to PostgreSQL %s"""
+    return sql.replace("?", "%s")
+
 def fetchone(db, sql, params=()):
     if is_pg():
         cur = db.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
-        cur.execute(sql, params)
+        cur.execute(pg_sql(sql), params)
         return cur.fetchone()
-    return fetchone(db, sql, params)
-
+    conn = sqlite3.connect(str(DB_FILE))
+    conn.row_factory = sqlite3.Row
+    return conn.execute(sql, params).fetchone()
 def fetchall(db, sql, params=()):
     if is_pg():
         cur = db.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
-        cur.execute(sql, params)
+        cur.execute(pg_sql(sql), params)
         return cur.fetchall()
-    return fetchall(db, sql, params)
-
+    conn = sqlite3.connect(str(DB_FILE))
+    conn.row_factory = sqlite3.Row
+    return conn.execute(sql, params).fetchall()
 def execute(db, sql, params=()):
     if is_pg():
         cur = db.cursor()
-        cur.execute(sql, params)
+        cur.execute(pg_sql(sql), params)
         db.commit()
         return cur
-    return execute(db, sql, params)
-
+    conn = sqlite3.connect(str(DB_FILE))
+    conn.row_factory = sqlite3.Row
+    return conn.execute(sql, params)
 def init_db():
     # Reset DB if requested
     if not is_pg() and os.environ.get('RESET_DB') == '1' and DB_FILE.exists():
