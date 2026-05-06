@@ -12,7 +12,9 @@
   --border:rgba(30,100,220,0.13);--border2:rgba(30,100,220,0.30);
   --blue:#1a6ef5;--teal:#0d9e72;--amber:#c87d0a;--red:#d63030;
   --text:#1a1f2e;--muted:#5a6478;--dim:#aab0bc;
+  --font-size: 14px;
 }
+body { font-size: var(--font-size); }
 body{background:var(--bg);color:var(--text);font-family:'IBM Plex Sans Hebrew',sans-serif;font-size:14px;line-height:1.6;min-height:100vh}
 
 /* LOGIN */
@@ -223,6 +225,7 @@ table.sgrid td.nc{text-align:right;font-weight:500;background:var(--s2);color:va
       </div>
       <div style="display:flex;gap:8px;align-items:center">
         <button id="adminBtn" onclick="openAdminPanel()" style="display:none;background:rgba(26,110,245,.1);border:1px solid var(--border2);color:var(--blue);border-radius:8px;padding:9px 16px;font-size:13px;cursor:pointer;font-family:inherit;align-items:center;gap:6px">👑 ניהול משתמשים</button>
+        <button onclick="openCustomize()" style="background:rgba(13,158,114,.1);border:1px solid rgba(13,158,114,.3);color:var(--teal);border-radius:8px;padding:9px 14px;font-size:13px;cursor:pointer;font-family:inherit" title="התאמה אישית">⚙️</button>
         <button class="gen-btn" id="genBtn" onclick="buildSchedule()">
         <div class="spin" id="spin"></div>
         <span id="genTxt">⚙️ בנה לוח משמרות</span>
@@ -276,7 +279,10 @@ table.sgrid td.nc{text-align:right;font-weight:500;background:var(--s2);color:va
 <!-- ADMIN PANEL MODAL -->
 <div class="overlay" id="adminOverlay">
   <div class="modal" style="width:540px;max-height:88vh;overflow-y:auto">
-    <div class="modal-title">👑 ניהול משתמשים</div>
+    <div class="modal-title" style="display:flex;justify-content:space-between;align-items:center">
+      <span>👑 ניהול משתמשים</span>
+      <button onclick="closeAdminPanel();openReport()" style="background:var(--s3);border:1px solid var(--border2);border-radius:6px;padding:5px 12px;cursor:pointer;font-size:12px;font-family:inherit">📋 דוח משתמשים</button>
+    </div>
     <div id="adminUsersList" style="margin-bottom:14px;max-height:300px;overflow-y:auto"></div>
     <div id="changePwBox" style="display:none;background:var(--s3);border:1px solid var(--border2);border-radius:8px;padding:12px;margin-bottom:12px">
       <div style="font-size:12px;font-weight:600;margin-bottom:8px" id="changePwTitle">שינוי סיסמה</div>
@@ -1088,6 +1094,150 @@ function getDateForDay(dayIndex){
   return d.toISOString().split('T')[0];
 }
 
+
+// ═══════════════════════════════════
+//  CUSTOMIZATION
+// ═══════════════════════════════════
+function openCustomize(){
+  const fs = parseInt(getComputedStyle(document.documentElement).getPropertyValue('--font-size'))||14;
+  document.getElementById('fontSizeLabel').textContent=fs+'px';
+  document.getElementById('customizeOverlay').classList.add('open');
+}
+function closeCustomize(){
+  document.getElementById('customizeOverlay').classList.remove('open');
+  saveCustomize();
+}
+document.getElementById('customizeOverlay').addEventListener('click',e=>{if(e.target===e.currentTarget)closeCustomize()});
+
+function changeFontSize(delta){
+  const root=document.documentElement;
+  const current=parseInt(getComputedStyle(root).getPropertyValue('--font-size').trim())||14;
+  const next=Math.max(11,Math.min(20,current+delta));
+  root.style.setProperty('--font-size',next+'px');
+  document.getElementById('fontSizeLabel').textContent=next+'px';
+}
+
+function setAccentColor(blue,border,border2){
+  const root=document.documentElement;
+  root.style.setProperty('--blue',blue);
+  root.style.setProperty('--border',border);
+  root.style.setProperty('--border2',border2);
+}
+
+function setTheme(mode){
+  const root=document.documentElement;
+  if(mode==='dark'){
+    root.style.setProperty('--bg','#07090f');
+    root.style.setProperty('--s1','#0d1117');
+    root.style.setProperty('--s2','#131c2e');
+    root.style.setProperty('--s3','#1a2540');
+    root.style.setProperty('--text','#e6edf3');
+    root.style.setProperty('--muted','#8b949e');
+    root.style.setProperty('--dim','#3d444d');
+  } else {
+    root.style.setProperty('--bg','#f0f2f5');
+    root.style.setProperty('--s1','#ffffff');
+    root.style.setProperty('--s2','#f6f8fa');
+    root.style.setProperty('--s3','#eef0f3');
+    root.style.setProperty('--text','#1a1f2e');
+    root.style.setProperty('--muted','#5a6478');
+    root.style.setProperty('--dim','#aab0bc');
+  }
+}
+
+function resetCustomize(){
+  const root=document.documentElement;
+  root.style.cssText='';
+  document.getElementById('fontSizeLabel').textContent='14px';
+  localStorage.removeItem('noc_customize');
+}
+
+function saveCustomize(){
+  const root=document.documentElement;
+  const styles={};
+  ['--font-size','--blue','--border','--border2','--bg','--s1','--s2','--s3','--text','--muted','--dim'].forEach(v=>{
+    const val=root.style.getPropertyValue(v);
+    if(val) styles[v]=val;
+  });
+  localStorage.setItem('noc_customize',JSON.stringify(styles));
+}
+
+function loadCustomize(){
+  try {
+    const saved=JSON.parse(localStorage.getItem('noc_customize')||'{}');
+    Object.entries(saved).forEach(([k,v])=>document.documentElement.style.setProperty(k,v));
+  } catch(e){}
+}
+
+// ═══════════════════════════════════
+//  USER REPORT
+// ═══════════════════════════════════
+async function openReport(){
+  await loadReportUsers();
+  document.getElementById('reportOverlay').classList.add('open');
+}
+function closeReport(){ document.getElementById('reportOverlay').classList.remove('open'); }
+document.getElementById('reportOverlay').addEventListener('click',e=>{if(e.target===e.currentTarget)closeReport()});
+
+let reportUsersData=[];
+
+async function loadReportUsers(){
+  try {
+    const r=await fetch('/api/users');
+    const d=await r.json();
+    if(!d.users) return;
+    reportUsersData=d.users;
+    document.getElementById('reportUsersList').innerHTML=`
+      <table style="width:100%;border-collapse:collapse;font-size:13px;margin-top:8px">
+        <thead>
+          <tr style="background:var(--s2);border-bottom:2px solid var(--border)">
+            <th style="padding:8px 12px;text-align:right;font-weight:600">שם משתמש</th>
+            <th style="padding:8px 12px;text-align:right;font-weight:600">סוג</th>
+            <th style="padding:8px 12px;text-align:right;font-weight:600">נוצר</th>
+            <th style="padding:8px 12px;text-align:right;font-weight:600">כניסה אחרונה</th>
+            <th style="padding:8px 12px;text-align:center;font-weight:600">פעולות</th>
+          </tr>
+        </thead>
+        <tbody>
+          ${d.users.map(u=>`
+            <tr style="border-bottom:1px solid var(--border);transition:background .12s" onmouseover="this.style.background='var(--s2)'" onmouseout="this.style.background=''">
+              <td style="padding:9px 12px;font-weight:500">
+                <div style="display:flex;align-items:center;gap:7px">
+                  <div style="width:28px;height:28px;border-radius:50%;background:${u.isAdmin?'var(--blue)':'var(--muted)'};display:flex;align-items:center;justify-content:center;color:#fff;font-size:12px;font-weight:700;flex-shrink:0">${u.username[0].toUpperCase()}</div>
+                  ${u.username}
+                </div>
+              </td>
+              <td style="padding:9px 12px"><span style="font-size:11px;padding:2px 8px;border-radius:10px;background:${u.isAdmin?'rgba(26,110,245,.1)':'rgba(90,100,120,.1)'};color:${u.isAdmin?'var(--blue)':'var(--muted)'}">${u.isAdmin?'👑 אדמין':'👤 משתמש'}</span></td>
+              <td style="padding:9px 12px;color:var(--muted);font-size:12px">${u.created||'—'}</td>
+              <td style="padding:9px 12px;color:var(--muted);font-size:12px">${u.lastLogin||'טרם נכנס'}</td>
+              <td style="padding:9px 12px;text-align:center">
+                ${u.username!=='admin'?`<button onclick="deleteUserFromReport(${u.id},'${u.username}')" style="background:none;border:1px solid rgba(214,48,48,.3);border-radius:5px;color:var(--red);cursor:pointer;font-size:11px;padding:3px 8px;font-family:inherit">🗑️ מחק</button>`:'—'}
+              </td>
+            </tr>`).join('')}
+        </tbody>
+      </table>
+      <div style="margin-top:10px;font-size:11px;color:var(--muted)">סה״כ ${d.users.length} משתמשים</div>`;
+  } catch(e){ console.error(e); }
+}
+
+async function deleteUserFromReport(id,username){
+  if(!confirm(`למחוק את "${username}"?`)) return;
+  const r=await fetch('/api/delete-user',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({user_id:id})});
+  const d=await r.json();
+  if(d.ok){ await loadReportUsers(); await loadAdminUsers(); }
+  else alert(d.error||'שגיאה');
+}
+
+function exportUsersCSV(){
+  if(!reportUsersData.length) return;
+  const rows=[['שם משתמש','סוג','נוצר','כניסה אחרונה']];
+  reportUsersData.forEach(u=>rows.push([u.username,u.isAdmin?'אדמין':'משתמש',u.created||'',u.lastLogin||'']));
+  const csv=rows.map(r=>r.map(c=>`"${c}"`).join(',')).join('
+');
+  const blob=new Blob(['﻿'+csv],{type:'text/csv;charset=utf-8'});
+  const a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download='users-report.csv';a.click();
+}
+
 // ═══════════════════════════════════
 //  ADMIN PANEL
 // ═══════════════════════════════════
@@ -1189,6 +1339,7 @@ function showAdminMsg(text,color){
   setTimeout(()=>el.style.display='none',3000);
 }
 
+loadCustomize();
 renderShiftsLegend();
 updatePrefShiftsModal();
 initWeekDate();

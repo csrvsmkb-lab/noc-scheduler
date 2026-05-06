@@ -98,11 +98,12 @@ def init_db():
     with get_db() as db:
         sql = """
         CREATE TABLE IF NOT EXISTS users (
-            id       INTEGER PRIMARY KEY AUTOINCREMENT,
-            username TEXT UNIQUE NOT NULL,
-            password TEXT NOT NULL,
-            is_admin INTEGER DEFAULT 0,
-            created  TEXT DEFAULT (datetime('now'))
+            id         INTEGER PRIMARY KEY AUTOINCREMENT,
+            username   TEXT UNIQUE NOT NULL,
+            password   TEXT NOT NULL,
+            is_admin   INTEGER DEFAULT 0,
+            created    TEXT DEFAULT (datetime('now')),
+            last_login TEXT DEFAULT NULL
         );
         -- Add is_admin column if upgrading from old db
         CREATE TABLE IF NOT EXISTS _migrate_done (id INTEGER PRIMARY KEY);
@@ -120,13 +121,16 @@ def init_db():
         );
         """
         execute_sql(db, sql)
-    # Migrate: add is_admin column if missing
-    try:
-        with get_db() as db:
-            execute(db, "ALTER TABLE users ADD COLUMN is_admin INTEGER DEFAULT 0")
-            print("  Migrated: added is_admin column")
-    except Exception:
-        pass  # Column already exists
+    # Migrate columns if missing
+    for col_sql in [
+        "ALTER TABLE users ADD COLUMN is_admin INTEGER DEFAULT 0",
+        "ALTER TABLE users ADD COLUMN last_login TEXT DEFAULT NULL",
+    ]:
+        try:
+            with get_db() as db:
+                execute(db, col_sql)
+        except Exception:
+            pass
 
     # Auto-create or update admin user from environment
     admin_pass = os.environ.get('ADMIN_PASSWORD', 'admin1234')
