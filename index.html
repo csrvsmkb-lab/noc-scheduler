@@ -299,7 +299,7 @@ table.sgrid td.nc{text-align:right;font-weight:500;background:var(--s2);color:va
       </div>
       <!-- AI EXPLANATION BOX -->
       <div class="ai-explain-box" id="aiExplainBox">
-        <div class="ai-explain-title">🤖 הסבר האלגוריתם — למה עובדים לא שובצו?</div>
+        <div class="ai-explain-title" style="font-size:13px;font-weight:700;margin-bottom:12px">🤖 ניתוח האלגוריתם — הסבר מלא לסידור</div>
         <div class="ai-explain-body" id="aiExplainBody"></div>
       </div>
       <!-- FORCE ASSIGN BUTTON -->
@@ -1040,56 +1040,14 @@ function renderSchedule(result, fromCache){
   if(notes){ document.getElementById('notesBody').textContent=notes; nbox.classList.add('vis'); }
   else nbox.classList.remove('vis');
 
-  // AI Explanation
+  // AI Explanation — always build after schedule
   const rejectionLog = result.rejectionLog || {};
-  const hasGaps = Object.keys(rejectionLog).length > 0;
+  lastRejectionLog = rejectionLog;
   const aiBox = document.getElementById('aiExplainBox');
   const forceWrap = document.getElementById('forceAssignWrap');
 
-  if(hasGaps && !fromCache){
-    const aiBody = document.getElementById('aiExplainBody');
-    let html = '';
-    let totalMissing = 0;
-
-    for(const [slotKey, rejections] of Object.entries(rejectionLog)){
-      if(!rejections.length) continue;
-      const [day,sh]=slotKey.split('|');
-      const assigned=(schedule[day]?.[sh]||[]).length;
-      const missing2=getConstraints().cover-assigned;
-      if(missing2<=0) continue;
-      totalMissing+=missing2;
-      html+=`<div class="ai-worker-section">
-        <div class="ai-worker-name">📅 ${day} — ${sh} <span style="color:var(--red);font-size:11px">(חסרים ${missing2} עובדים)</span></div>`;
-      if(!rejections.length){
-        html+=`<span class="ai-reason-tag ok">כל העובדים כבר שובצו</span>`;
-      } else {
-        // Group by reason type
-        const blocked=rejections.filter(r=>r.reasons.some(x=>x.includes('חסום')||x.includes('היעדרות')||x.includes('חופש')));
-        const constraint=rejections.filter(r=>r.reasons.some(x=>x.includes('מגבלת')||x.includes('מקסימום')||x.includes('מנוחה')));
-        const score=rejections.filter(r=>r.reasons.some(x=>x.includes('ניקוד')));
-        const busy=rejections.filter(r=>r.reasons.some(x=>x.includes('כבר משובץ')));
-
-        if(blocked.length) html+=`<div style="margin-bottom:4px"><span style="font-size:11px;color:var(--muted)">חסומים לחלוטין:</span> ${blocked.map(r=>`<span class="ai-reason-tag block">${r.name} — ${r.reasons[0]}</span>`).join('')}</div>`;
-        if(busy.length) html+=`<div style="margin-bottom:4px"><span style="font-size:11px;color:var(--muted)">עסוקים ביום זה:</span> ${busy.map(r=>`<span class="ai-reason-tag warn">${r.name}</span>`).join('')}</div>`;
-        if(constraint.length) html+=`<div style="margin-bottom:4px"><span style="font-size:11px;color:var(--muted)">חרגו ממגבלה:</span> ${constraint.map(r=>`<span class="ai-reason-tag warn">${r.name} — ${r.reasons[0]}</span>`).join('')}</div>`;
-        if(score.length) html+=`<div style="margin-bottom:4px"><span style="font-size:11px;color:var(--muted)">לא נבחרו (ניקוד):</span> ${score.map(r=>`<span class="ai-reason-tag">${r.name}</span>`).join('')}</div>`;
-      }
-      html+=`<div style="margin-top:6px"><button onclick="openForceSlot('${day}','${sh}')" style="background:rgba(200,125,10,.1);border:1px solid rgba(200,125,10,.3);color:var(--amber);border-radius:6px;padding:3px 10px;font-size:11px;cursor:pointer;font-family:inherit">✏️ כפה שיבוץ למשמרת זו</button></div>`;
-      html+='</div>';
-    }
-
-    if(html){
-      aiBody.innerHTML=html;
-      aiBox.classList.add('vis');
-      forceWrap.style.display='block';
-    } else {
-      aiBox.classList.remove('vis');
-      forceWrap.style.display='none';
-    }
-    lastRejectionLog = rejectionLog;
-  } else {
-    aiBox.classList.remove('vis');
-    forceWrap.style.display='none';
+  if(!fromCache){
+    buildAIExplanation(schedule, stats, rejectionLog);
   }
 
   document.getElementById('schedTitle').textContent=`לוח משמרות שבועי — ${workers.length} עובדים${fromCache?' (שמור)':''}`;
@@ -1303,8 +1261,15 @@ let reportUsersData=[];
 async function loadReportUsers(){
   try {
     const r=await fetch('/api/users');
+    if(!r.ok){
+      document.getElementById('reportUsersList').innerHTML=`<div style="color:var(--red);padding:16px">שגיאה בטעינת משתמשים (${r.status}). נדרשות הרשאות מנהל.</div>`;
+      return;
+    }
     const d=await r.json();
-    if(!d.users) return;
+    if(!d.users){
+      document.getElementById('reportUsersList').innerHTML='<div style="color:var(--muted);padding:16px">אין נתונים</div>';
+      return;
+    }
     reportUsersData=d.users;
     document.getElementById('reportUsersList').innerHTML=`
       <table style="width:100%;border-collapse:collapse;font-size:13px;margin-top:8px">
@@ -1844,6 +1809,182 @@ function showWhyNotAssigned(workerName, day, shift){
 }
 
 function closeWhyNot(){ document.getElementById('whyNotOverlay').classList.remove('open'); }
+
+
+// ═══════════════════════════════════════════════════════
+//  AI EXPLANATION PANEL — full analysis after each build
+// ═══════════════════════════════════════════════════════
+function buildAIExplanation(schedule, stats, rejectionLog){
+  const aiBox = document.getElementById('aiExplainBox');
+  const aiBody = document.getElementById('aiExplainBody');
+  const forceWrap = document.getElementById('forceAssignWrap');
+  const C = getConstraints();
+
+  // Rebuild worker states from schedule
+  const workerStates = {};
+  for(const w of workers){
+    const st = {total:0, nights:0, weekdays:0, weekend:0, byDay:{}};
+    for(const d of DAYS){
+      const isWE = WEEKEND_DAYS.has(d);
+      for(const sh of getShiftNames()){
+        if((schedule[d]?.[sh]||[]).includes(w.name)){
+          st.total++; st.byDay[d]=sh;
+          if(sh===getShiftNames()[getShiftNames().length-1]) st.nights++;
+          if(isWE) st.weekend++; else st.weekdays++;
+        }
+      }
+    }
+    workerStates[w.name]=st;
+  }
+
+  // ── Section 1: Unfilled slots ──────────────────────
+  const gapSlots = [];
+  for(const d of DAYS){
+    for(const sh of getShiftNames()){
+      const cnt=(schedule[d]?.[sh]||[]).length;
+      if(cnt < C.cover) gapSlots.push({day:d, shift:sh, have:cnt, need:C.cover});
+    }
+  }
+
+  // ── Section 2: Per-worker full analysis ─────────────
+  const workerAnalysis = workers.map(w => {
+    const st = workerStates[w.name];
+    const issues = [];
+    const info = [];
+
+    // Days not assigned and why
+    const unassignedDays = DAYS.filter(d => !st.byDay[d]);
+    const assignedDays = DAYS.filter(d => st.byDay[d]);
+
+    // Check if near limits
+    if(st.nights >= C.nights) issues.push(`הגיע למקס׳ לילות (${st.nights}/${C.nights})`);
+    if(st.weekdays >= C.wkmax) issues.push(`הגיע למקס׳ חול (${st.weekdays}/${C.wkmax})`);
+    if(w.blockedDays.length) info.push(`ימים חסומים: ${w.blockedDays.join(', ')}`);
+    if(w.absenceDays && w.absenceDays.length) info.push(`היעדר: ${w.absenceDays.join(', ')}`);
+    if(w.prefShifts.length) info.push(`מועדף: ${w.prefShifts.join(', ')}`);
+
+    // Per-day reason for unassigned days
+    const dayReasons = {};
+    for(const d of unassignedDays){
+      const di = DAYS.indexOf(d);
+      const isWE = WEEKEND_DAYS.has(d);
+      const prevDay = di > 0 ? DAYS[di-1] : null;
+      const didNightPrev = prevDay && st.byDay[prevDay] === getShiftNames()[getShiftNames().length-1];
+
+      if((w.status==='vacation'||w.status==='sick')&&(!w.absenceDays||!w.absenceDays.length)){
+        dayReasons[d] = {reason: w.status==='vacation'?'חופש שבועי':'מחלה שבועית', type:'block'};
+      } else if(w.absenceDays&&w.absenceDays.includes(d)){
+        dayReasons[d] = {reason:'היעדרות מתוכננת', type:'block'};
+      } else if(w.blockedDays.includes(d)){
+        dayReasons[d] = {reason:'יום חסום', type:'block'};
+      } else if(didNightPrev){
+        dayReasons[d] = {reason:'לילה קודם — מנוחה', type:'warn'};
+      } else if(!isWE && st.weekdays >= C.wkmax){
+        dayReasons[d] = {reason:'מקס׳ חול הגיע', type:'warn'};
+      } else {
+        dayReasons[d] = {reason:'לא נבחר (עדיפות)', type:'info'};
+      }
+    }
+
+    return {w, st, issues, info, assignedDays, unassignedDays, dayReasons};
+  });
+
+  // ── Build HTML ──────────────────────────────────────
+  let html = '';
+
+  // SECTION A: Gaps (if any)
+  if(gapSlots.length){
+    html += `<div style="margin-bottom:16px;padding:12px 14px;background:rgba(214,48,48,.05);border:1px solid rgba(214,48,48,.2);border-radius:8px">
+      <div style="font-size:12px;font-weight:700;color:var(--red);margin-bottom:8px">⚠️ משמרות לא מאוישות במלואן</div>`;
+    for(const {day,shift,have,need} of gapSlots){
+      const slotKey=day+'|'+shift;
+      const rejections=(rejectionLog[slotKey]||[]);
+      html += `<div style="margin-bottom:8px;padding:8px 10px;background:var(--s1);border-radius:6px;border:1px solid var(--border)">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:5px">
+          <span style="font-weight:600;font-size:12px">📅 ${day} — ${shift}</span>
+          <span style="font-size:11px;color:var(--red)">${have}/${need} עובדים</span>
+        </div>`;
+      if(rejections.length){
+        const byType = {block:[], warn:[], info:[]};
+        rejections.forEach(r=>{
+          const t = r.reasons[0]?.includes('חופש')||r.reasons[0]?.includes('חסום')||r.reasons[0]?.includes('היעדרות') ? 'block'
+                  : r.reasons[0]?.includes('מקסימום')||r.reasons[0]?.includes('מגבלת')||r.reasons[0]?.includes('מנוחה') ? 'warn' : 'info';
+          byType[t].push(r);
+        });
+        const colors={block:'var(--red)',warn:'var(--amber)',info:'var(--muted)'};
+        const labels={block:'חסום',warn:'מוגבל',info:'לא נבחר'};
+        ['block','warn','info'].forEach(t=>{
+          if(byType[t].length) html+=`<div style="font-size:11px;margin-bottom:3px"><span style="color:${colors[t]};font-weight:600">${labels[t]}:</span> ${byType[t].map(r=>`<span style="background:var(--s3);border-radius:4px;padding:1px 6px;margin-right:3px">${r.name}</span>`).join('')}</div>`;
+        });
+      }
+      html += `<button onclick="openForceSlot('${day}','${shift}')" style="margin-top:5px;background:rgba(200,125,10,.1);border:1px solid rgba(200,125,10,.3);color:var(--amber);border-radius:5px;padding:3px 10px;font-size:11px;cursor:pointer;font-family:inherit">✏️ כפה שיבוץ</button>`;
+      html += '</div>';
+    }
+    html += '</div>';
+    forceWrap.style.display='block';
+  } else {
+    html += `<div style="margin-bottom:12px;padding:10px 14px;background:rgba(13,158,114,.06);border:1px solid rgba(13,158,114,.2);border-radius:8px;font-size:12px;color:var(--teal)">✅ כל המשמרות אוישו במלואן!</div>`;
+    forceWrap.style.display='none';
+  }
+
+  // SECTION B: Per-worker analysis
+  html += `<div style="font-size:12px;font-weight:700;color:var(--text);margin-bottom:10px;margin-top:4px">👥 ניתוח עובדים</div>`;
+  html += `<div style="display:flex;flex-direction:column;gap:8px">`;
+
+  for(const {w, st, issues, info, assignedDays, unassignedDays, dayReasons} of workerAnalysis){
+    const isAbsent = (w.status==='vacation'||w.status==='sick')&&(!w.absenceDays||!w.absenceDays.length);
+    const hasIssues = issues.length > 0;
+
+    html += `<div style="background:var(--s1);border:1px solid ${hasIssues?'rgba(200,125,10,.3)':'var(--border)'};border-radius:8px;padding:10px 12px">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px">
+        <div style="display:flex;align-items:center;gap:7px">
+          <div style="width:24px;height:24px;border-radius:50%;background:linear-gradient(135deg,var(--blue),var(--teal));display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:700;color:#fff">${w.name[0]}</div>
+          <span style="font-weight:600;font-size:13px">${w.name}</span>
+          ${isAbsent?`<span style="font-size:11px;color:var(--amber)">${w.status==='vacation'?'🏖️ חופש':'🤒 מחלה'}</span>`:''}
+        </div>
+        <span style="font-size:11px;font-family:monospace;color:var(--muted)">${st.total} משמ׳ | ${st.nights} לילות</span>
+      </div>`;
+
+    // Assigned days summary
+    if(assignedDays.length){
+      html += `<div style="display:flex;gap:3px;flex-wrap:wrap;margin-bottom:6px">`;
+      for(const d of DAYS){
+        const sh = st.byDay[d];
+        const isBlocked = w.blockedDays.includes(d);
+        const isAbsentDay = (w.absenceDays||[]).includes(d);
+        if(sh){
+          const code = sh===getShiftNames()[0]?'ב':sh===getShiftNames()[getShiftNames().length-1]?'ל':'צ';
+          const bg = sh===getShiftNames()[0]?'rgba(26,110,245,.15)':sh===getShiftNames()[getShiftNames().length-1]?'rgba(200,125,10,.15)':'rgba(13,158,114,.15)';
+          html += `<span style="background:${bg};border-radius:5px;padding:2px 6px;font-size:11px;font-weight:600" title="${d} — ${sh}">${d.slice(0,2)} ${code}</span>`;
+        } else if(isAbsentDay){
+          html += `<span style="background:rgba(240,167,66,.1);border-radius:5px;padding:2px 6px;font-size:11px;color:var(--amber)" title="${d}">${d.slice(0,2)} ${w.absenceType==='vacation'?'🏖️':'🤒'}</span>`;
+        } else if(isBlocked){
+          html += `<span style="background:rgba(214,48,48,.07);border-radius:5px;padding:2px 6px;font-size:11px;color:var(--red)" title="${d} — חסום">${d.slice(0,2)} ✗</span>`;
+        } else {
+          const reason = dayReasons[d];
+          const col = reason?.type==='warn'?'var(--amber)':reason?.type==='block'?'var(--red)':'var(--dim)';
+          html += `<span style="background:var(--s3);border-radius:5px;padding:2px 6px;font-size:11px;color:${col}" title="${d} — ${reason?.reason||'לא שובץ'}">${d.slice(0,2)} —</span>`;
+        }
+      }
+      html += '</div>';
+    }
+
+    // Issues
+    if(issues.length){
+      html += `<div style="font-size:11px;color:var(--amber);margin-top:2px">⚠️ ${issues.join(' | ')}</div>`;
+    }
+    if(info.length){
+      html += `<div style="font-size:11px;color:var(--muted);margin-top:2px">${info.join(' | ')}</div>`;
+    }
+
+    html += '</div>';
+  }
+
+  html += '</div>';
+
+  aiBody.innerHTML = html;
+  aiBox.classList.add('vis');
+}
 
 </script>
 <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
