@@ -213,6 +213,19 @@ def init_db():
             created    TEXT DEFAULT (datetime('now')),
             is_read    INTEGER DEFAULT 0
         );
+        CREATE TABLE IF NOT EXISTS companies (
+            id       INTEGER PRIMARY KEY AUTOINCREMENT,
+            name     TEXT NOT NULL,
+            plan     TEXT DEFAULT 'trial',
+            active   INTEGER DEFAULT 1,
+            created  TEXT DEFAULT (datetime('now'))
+        );
+        CREATE TABLE IF NOT EXISTS departments (
+            id          INTEGER PRIMARY KEY AUTOINCREMENT,
+            company_id  INTEGER NOT NULL,
+            name        TEXT NOT NULL,
+            created     TEXT DEFAULT (datetime('now'))
+        );
         """
         execute_sql(db, sql)
 
@@ -741,6 +754,62 @@ class Handler(http.server.BaseHTTPRequestHandler):
                     workers = [{'name': w['name'], 'role': w.get('role','')} for w in data.get('workers', [])]
                     return self.send_json(200, {'workers': workers})
             return self.send_json(200, {'workers': []})
+
+        # ── Companies ─────────────────────────────────────
+        if path == '/api/companies':
+            if not user_id: return self.send_json(401, {'error': 'לא מחובר'})
+            with get_db() as db:
+                row = fetchone(db, "SELECT username FROM users WHERE id=?", (user_id,))
+                if not row or row['username'] != ADMIN_USERNAME:
+                    return self.send_json(403, {'error': 'אין הרשאה'})
+                companies = fetchall(db, "SELECT id, name, plan, active, created FROM companies ORDER BY created DESC")
+                return self.send_json(200, {'companies': companies})
+
+        if path == '/api/companies/create':
+            if not user_id: return self.send_json(401, {'error': 'לא מחובר'})
+            with get_db() as db:
+                row = fetchone(db, "SELECT username FROM users WHERE id=?", (user_id,))
+                if not row or row['username'] != ADMIN_USERNAME:
+                    return self.send_json(403, {'error': 'אין הרשאה'})
+                name = payload.get('name','').strip()
+                plan = payload.get('plan','trial')
+                if not name: return self.send_json(400, {'error': 'שם חברה נדרש'})
+                execute(db, "INSERT INTO companies (name,plan) VALUES (?,?)", (name, plan))
+                comp = fetchone(db, "SELECT id FROM companies WHERE name=? ORDER BY id DESC LIMIT 1", (name,))
+            return self.send_json(200, {'ok': True, 'id': comp['id'] if comp else None})
+
+        if path == '/api/departments':
+            if not user_id: return self.send_json(401, {'error': 'לא מחובר'})
+            cid = payload.get('company_id')
+            if not cid: return self.send_json(400, {'error': 'company_id נדרש'})
+            with get_db() as db:
+                deps = fetchall(db, "SELECT id, name FROM departments WHERE company_id=? ORDER BY name", (cid,))
+                return self.send_json(200, {'departments': deps})
+
+        if path == '/api/departments/create':
+            if not user_id: return self.send_json(401, {'error': 'לא מחובר'})
+            with get_db() as db:
+                row = fetchone(db, "SELECT username FROM users WHERE id=?", (user_id,))
+                if not row or row['username'] != ADMIN_USERNAME:
+                    return self.send_json(403, {'error': 'אין הרשאה'})
+                name = payload.get('name','').strip()
+                cid = payload.get('company_id')
+                if not name or not cid: return self.send_json(400, {'error': 'שם ו-company_id נדרשים'})
+                execute(db, "INSERT INTO departments (company_id, name) VALUES (?,?)", (cid, name))
+                dep = fetchone(db, "SELECT id FROM departments WHERE company_id=? AND name=? ORDER BY id DESC LIMIT 1", (cid, name))
+            return self.send_json(200, {'ok': True, 'id': dep['id'] if dep else None})
+
+        if path == '/api/admin/stats':
+            if not user_id: return self.send_json(401, {'error': 'לא מחובר'})
+            with get_db() as db:
+                row = fetchone(db, "SELECT username FROM users WHERE id=?", (user_id,))
+                if not row or row['username'] != ADMIN_USERNAME:
+                    return self.send_json(403, {'error': 'אין הרשאה'})
+                tc = fetchone(db, "SELECT COUNT(*) as n FROM companies")['n']
+                ac = fetchone(db, "SELECT COUNT(*) as n FROM companies WHERE active=1")['n']
+                tm = fetchone(db, "SELECT COUNT(*) as n FROM users WHERE is_admin=1 AND username!=?", (ADMIN_USERNAME,))['n']
+                tw = fetchone(db, "SELECT COUNT(*) as n FROM users WHERE is_admin=0 AND username!=?", (ADMIN_USERNAME,))['n']
+                return self.send_json(200, {'totalCompanies': tc, 'activeCompanies': ac, 'totalManagers': tm, 'totalWorkers': tw, 'totalUsers': tm+tw})
 
         self.send_json(404, {'error': 'Not found'})
 
