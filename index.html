@@ -1551,10 +1551,8 @@ async function openAdminPanel(){
   if(unEl) unEl.value='';
   const pwEl=document.getElementById('newUserPass');
   if(pwEl) pwEl.value='';
-  document.getElementById('changePwBox').style.display='none';
-  document.getElementById('newUsername').value='';
-  document.getElementById('newUserPass').value='';
-  document.getElementById('newUserIsAdmin').checked=false;
+  const cpBox=document.getElementById('changePwBox');
+  if(cpBox) cpBox.style.display='none';
   await loadAdminUsers();
   document.getElementById('adminOverlay').classList.add('open');
 }
