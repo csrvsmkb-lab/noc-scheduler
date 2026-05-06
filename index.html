@@ -944,6 +944,7 @@ function runAlgorithm(C){
 // ═══════════════════════════════════════════════════════
 function renderSchedule(result, fromCache){
   const {schedule,stats,violations,notes}=result;
+  const C = getConstraints();
 
   const totalS=Object.values(stats||{}).reduce((a,s)=>a+(s.total_shifts||0),0);
   const totalN=Object.values(stats||{}).reduce((a,s)=>a+(s.nights||0),0);
@@ -1054,9 +1055,8 @@ function renderSchedule(result, fromCache){
       if(!rejections.length) continue;
       const [day,sh]=slotKey.split('|');
       const assigned=(schedule[day]?.[sh]||[]).length;
-      const missing=C.cover-assigned; // C is from outer scope — use lastConstraints
-      const cons=getConstraints();
-      const missing2=cons.cover-assigned;
+      const missing=C.cover-assigned;ints
+      const missing2=getConstraints().cover-assigned;
       if(missing2<=0) continue;
       totalMissing+=missing2;
       html+=`<div class="ai-worker-section">
