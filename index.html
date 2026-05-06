@@ -1025,7 +1025,7 @@ function renderSchedule(result, fromCache){
       else if(isOfficeOut&&!blocked) html+=`<td style="background:rgba(56,139,253,.06);${br}" title="🏃 מחוץ למשרד"><span style="font-size:12px">🏃</span></td>`;
       else if(isTraining&&!blocked) html+=`<td style="background:rgba(57,208,160,.06);${br}" title="📚 הדרכה/חפיפה"><span style="font-size:12px">📚</span></td>`;
       else if(blocked) html+=`<td style="background:rgba(214,48,48,.04);${br}"><span style="color:rgba(214,48,48,.45);font-size:12px">✗</span></td>`;
-      else html+=`<td style="${br}"><span class="poff">—</span></td>`;
+      else html+=`<td style="${br};cursor:pointer" onclick="showWhyNotAssigned('${w.name.replace(/'/g,"\'")}','${d}','${sh}')" title="למה לא שובץ?"><span class="poff">—</span></td>`;
     }
     html+='</tr>';
   }
@@ -1055,7 +1055,6 @@ function renderSchedule(result, fromCache){
       if(!rejections.length) continue;
       const [day,sh]=slotKey.split('|');
       const assigned=(schedule[day]?.[sh]||[]).length;
-      const missing=C.cover-assigned;ints
       const missing2=getConstraints().cover-assigned;
       if(missing2<=0) continue;
       totalMissing+=missing2;
@@ -1749,11 +1748,102 @@ function exportWeeklyCSV(){
 
 document.addEventListener('keydown',e=>{
   if(e.key==='Escape'){
-    ['dayNoteOverlay','shiftNoteOverlay','workerStatsOverlay','weeklyReportOverlay','forceAssignOverlay'].forEach(id=>{
+    ['dayNoteOverlay','shiftNoteOverlay','workerStatsOverlay','weeklyReportOverlay','forceAssignOverlay','whyNotOverlay'].forEach(id=>{
       const el=document.getElementById(id);if(el&&el.classList.contains('open'))el.classList.remove('open');
     });
   }
 });
+
+
+// ═══════════════════════════════════════════════════════
+//  WHY NOT ASSIGNED — explain empty cells
+// ═══════════════════════════════════════════════════════
+function showWhyNotAssigned(workerName, day, shift){
+  if(!lastSchedule) return;
+  const w = workers.find(x=>x.name===workerName);
+  if(!w) return;
+  const C = getConstraints();
+  const di = DAYS.indexOf(day);
+  const isWE = WEEKEND_DAYS.has(day);
+  const shiftNames = getShiftNames();
+  const isNight = shiftNames.indexOf(shift) === shiftNames.length-1;
+  const isMorning = shiftNames.indexOf(shift) === 0;
+
+  // Recompute worker state from lastSchedule
+  const st = {total:0, nights:0, weekdays:0, weekend:0, byDay: Array(7).fill(null)};
+  for(let d2i=0; d2i<DAYS.length; d2i++){
+    const d2=DAYS[d2i]; const isWE2=WEEKEND_DAYS.has(d2);
+    for(const sh2 of shiftNames){
+      if((lastSchedule[d2]?.[sh2]||[]).includes(workerName)){
+        st.total++; st.byDay[d2i]=sh2;
+        if(sh2===shiftNames[shiftNames.length-1]) st.nights++;
+        if(isWE2) st.weekend++; else st.weekdays++;
+      }
+    }
+  }
+
+  function didNight(di2){ return st.byDay[di2]==='לילה' || st.byDay[di2]===shiftNames[shiftNames.length-1]; }
+  function consecBefore(di2){ let n=0; for(let i=di2-1;i>=0;i--){ if(st.byDay[i]!==null) n++; else break; } return n; }
+
+  const reasons = [];
+  const ok = [];
+
+  // Check each constraint
+  if((w.status==='vacation'||w.status==='sick')&&(!w.absenceDays||w.absenceDays.length===0)){
+    reasons.push({icon:'🏖️', text: w.status==='vacation'?'בחופש כל השבוע':'במחלה כל השבוע', type:'block'});
+  } else if(w.absenceDays&&w.absenceDays.includes(day)){
+    reasons.push({icon:'📅', text:'היעדרות מתוכננת ביום זה ('+(w.absenceType==='vacation'?'חופש':'מחלה')+')', type:'block'});
+  } else if(w.blockedDays.includes(day)){
+    reasons.push({icon:'🚫', text:'יום חסום להעדפת העובד', type:'block'});
+  } else if(st.byDay[di]!==null){
+    reasons.push({icon:'✅', text:'כבר משובץ ביום זה ל'+st.byDay[di], type:'info'});
+  } else if(isMorning && di>0 && didNight(di-1)){
+    reasons.push({icon:'😴', text:'עבד משמרת לילה אמש — אין מנוחה מינימלית ('+C.rest+' שעות)', type:'warn'});
+  } else if(consecBefore(di) >= C.consec){
+    reasons.push({icon:'📊', text:'כבר עבד '+C.consec+' משמרות רצופות — מגבלת רצף', type:'warn'});
+  } else if(isNight && st.nights >= C.nights){
+    reasons.push({icon:'🌙', text:'הגיע למקסימום לילות שבועי ('+C.nights+'/'+C.nights+')', type:'warn'});
+  } else if(!isWE && st.weekdays >= C.wkmax){
+    reasons.push({icon:'📋', text:'הגיע למקסימום משמרות חול שבועי ('+C.wkmax+'/'+C.wkmax+')', type:'warn'});
+  } else {
+    reasons.push({icon:'🎯', text:'זמין — אלגוריתם העדיף עובד אחר בעל ניקוד נמוך יותר', type:'info'});
+  }
+
+  // Show positives
+  if(w.prefShifts.includes(shift)) ok.push('משמרת מועדפת על העובד');
+  if(!w.blockedDays.includes(day)) ok.push('היום לא חסום');
+
+  const colorMap = {block:'var(--red)', warn:'var(--amber)', info:'var(--muted)'};
+  const bgMap = {block:'rgba(214,48,48,.07)', warn:'rgba(200,125,10,.07)', info:'var(--s3)'};
+
+  const reasonsHTML = reasons.map(r=>`
+    <div style="display:flex;align-items:flex-start;gap:10px;padding:10px 12px;background:${bgMap[r.type]};border:1px solid ${colorMap[r.type]}33;border-radius:8px;margin-bottom:8px">
+      <span style="font-size:16px;flex-shrink:0">${r.icon}</span>
+      <span style="font-size:13px;color:${colorMap[r.type]};line-height:1.5">${r.text}</span>
+    </div>`).join('');
+
+  const canForce = !reasons.some(r=>r.type==='block'&&r.text.includes('כל השבוע'));
+
+  document.getElementById('whyNotTitle').textContent = `❓ ${workerName} — ${day} ${shift}`;
+  document.getElementById('whyNotBody').innerHTML = `
+    <div style="margin-bottom:12px">
+      <div style="font-size:11px;font-weight:600;color:var(--muted);letter-spacing:.7px;margin-bottom:8px">סיבות לאי-שיבוץ</div>
+      ${reasonsHTML}
+    </div>
+    <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:4px">
+      <div style="font-size:11px;color:var(--muted)">משמרות השבוע: <strong>${st.total}</strong> | לילות: <strong>${st.nights}</strong> | חול: <strong>${st.weekdays}</strong></div>
+    </div>
+    ${canForce?`<div style="margin-top:14px;padding-top:12px;border-top:1px solid var(--border)">
+      <button onclick="closeWhyNot();forceAssignWorker('${workerName.replace(/'/g,"\'")}','${day}','${shift}')" 
+        style="background:rgba(200,125,10,.1);border:1px solid rgba(200,125,10,.35);color:var(--amber);border-radius:8px;padding:8px 16px;font-size:13px;cursor:pointer;font-family:inherit;font-weight:500">
+        ✏️ שבץ בכוח למרות המגבלה
+      </button>
+    </div>`:''}`;
+
+  document.getElementById('whyNotOverlay').classList.add('open');
+}
+
+function closeWhyNot(){ document.getElementById('whyNotOverlay').classList.remove('open'); }
 
 </script>
 <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
@@ -1879,6 +1969,18 @@ document.addEventListener('keydown',e=>{
     </div>
     <div id="weeklyReportContent"></div>
     <div class="mactions"><button class="btn-cancel" onclick="closeWeeklyReport()">סגור</button></div>
+  </div>
+</div>
+
+
+<!-- WHY NOT ASSIGNED MODAL -->
+<div class="overlay" id="whyNotOverlay">
+  <div class="modal" style="width:420px">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px">
+      <div style="font-size:15px;font-weight:600" id="whyNotTitle">❓ למה לא שובץ?</div>
+      <button onclick="closeWhyNot()" style="background:none;border:none;font-size:22px;cursor:pointer;color:var(--muted);line-height:1">×</button>
+    </div>
+    <div id="whyNotBody"></div>
   </div>
 </div>
 
