@@ -152,6 +152,15 @@ def init_db():
             created  TEXT DEFAULT (datetime('now')),
             FOREIGN KEY(user_id) REFERENCES users(id)
         );
+        CREATE TABLE IF NOT EXISTS shift_requests (
+            id         INTEGER PRIMARY KEY AUTOINCREMENT,
+            username   TEXT NOT NULL,
+            week_start TEXT NOT NULL,
+            requests   TEXT NOT NULL,
+            comment    TEXT DEFAULT '',
+            created    TEXT DEFAULT (datetime('now')),
+            is_read    INTEGER DEFAULT 0
+        );
         """
         execute_sql(db, sql)
 
@@ -596,6 +605,64 @@ class Handler(http.server.BaseHTTPRequestHandler):
                                (user_id, week_start))
             notes = {f"{r['day']}_{r['shift']}": r['note'] for r in rows}
             return self.send_json(200, {'notes': notes})
+
+        # ── Worker: submit shift requests ──────────────────
+        if path == '/api/shift-request':
+            if not user_id: return self.send_json(401, {'error': 'לא מחובר'})
+            with get_db() as db:
+                row = fetchone(db, "SELECT username FROM users WHERE id=?", (user_id,))
+                if not row: return self.send_json(401, {'error': 'לא מחובר'})
+                username = row['username']
+                week_start = payload.get('weekStart', '')
+                requests_data = json.dumps(payload.get('requests', {}), ensure_ascii=False)
+                comment = payload.get('comment', '')
+                existing = fetchone(db, "SELECT id FROM shift_requests WHERE username=? AND week_start=?", (username, week_start))
+                if existing:
+                    execute(db, "UPDATE shift_requests SET requests=?, comment=?, created=datetime('now'), is_read=0 WHERE username=? AND week_start=?",
+                            (requests_data, comment, username, week_start))
+                else:
+                    execute(db, "INSERT INTO shift_requests (username, week_start, requests, comment) VALUES (?,?,?,?)",
+                            (username, week_start, requests_data, comment))
+            return self.send_json(200, {'ok': True})
+
+        # ── Manager: get all shift requests for a week ────
+        if path == '/api/shift-requests':
+            if not user_id: return self.send_json(401, {'error': 'לא מחובר'})
+            with get_db() as db:
+                urow = fetchone(db, "SELECT username, is_admin FROM users WHERE id=?", (user_id,))
+                if not urow or (urow['username'] != ADMIN_USERNAME and int(urow.get('is_admin') or 0) != 1):
+                    return self.send_json(403, {'error': 'אין הרשאה'})
+                week_start = payload.get('weekStart', '')
+                rows = fetchall(db, "SELECT username, requests, comment, created, is_read FROM shift_requests WHERE week_start=? ORDER BY created DESC", (week_start,))
+                execute(db, "UPDATE shift_requests SET is_read=1 WHERE week_start=?", (week_start,))
+                return self.send_json(200, {'requests': [
+                    {'username': r['username'], 'requests': json.loads(r['requests']),
+                     'comment': r['comment'], 'created': str(r['created']), 'isRead': bool(r['is_read'])}
+                    for r in rows
+                ]})
+
+        # ── Count unread requests ─────────────────────────
+        if path == '/api/shift-requests/unread':
+            if not user_id: return self.send_json(401, {'error': 'לא מחובר'})
+            with get_db() as db:
+                urow = fetchone(db, "SELECT username, is_admin FROM users WHERE id=?", (user_id,))
+                if not urow or (urow['username'] != ADMIN_USERNAME and int(urow.get('is_admin') or 0) != 1):
+                    return self.send_json(200, {'count': 0})
+                row = fetchone(db, "SELECT COUNT(*) as n FROM shift_requests WHERE is_read=0")
+                return self.send_json(200, {'count': row['n'] if row else 0})
+
+        # ── Worker: get MY schedule ───────────────────────
+        if path == '/api/my-schedule':
+            if not user_id: return self.send_json(401, {'error': 'לא מחובר'})
+            with get_db() as db:
+                urow = fetchone(db, "SELECT username FROM users WHERE id=?", (user_id,))
+                if not urow: return self.send_json(401, {'error': 'לא מחובר'})
+                username = urow['username']
+                admin_row = fetchone(db, "SELECT id FROM users WHERE username=?", (ADMIN_USERNAME,))
+                if admin_row:
+                    data = load_user_data(admin_row['id'])
+                    return self.send_json(200, {'username': username, 'schedule': data.get('lastSchedule',{}), 'generated': data.get('lastGenerated','')})
+            return self.send_json(200, {'username': '', 'schedule': {}, 'generated': ''})
 
         self.send_json(404, {'error': 'Not found'})
 

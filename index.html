@@ -285,6 +285,24 @@ table.sgrid td.nc{text-align:right;font-weight:500;background:var(--s2);color:va
 td.locked-cell{position:relative}
 td.locked-cell::after{content:'🔒';position:absolute;top:1px;right:1px;font-size:8px;line-height:1}
 
+
+/* WORKER PORTAL */
+#workerScreen{display:none;min-height:100vh;background:var(--bg);direction:rtl}
+#workerScreen.vis{display:block}
+.wp-header{background:var(--s1);border-bottom:1px solid var(--border);padding:14px 20px;display:flex;align-items:center;justify-content:space-between;position:sticky;top:0;z-index:10}
+.wp-logo{font-size:15px;font-weight:700;color:var(--blue)}
+.wp-body{max-width:600px;margin:0 auto;padding:20px 16px}
+.wp-card{background:var(--s1);border:1px solid var(--border2);border-radius:12px;padding:20px;margin-bottom:16px}
+.wp-card-title{font-size:14px;font-weight:600;margin-bottom:14px;color:var(--text);display:flex;align-items:center;gap:6px}
+.wp-tab-bar{display:flex;gap:8px;margin-bottom:16px}
+.wp-tab{flex:1;padding:10px;border-radius:8px;font-size:13px;cursor:pointer;font-family:inherit;transition:all .15s}
+.wp-tab.active{border:2px solid var(--blue);background:rgba(26,110,245,.08);color:var(--blue);font-weight:600}
+.wp-tab.inactive{border:1px solid var(--border2);background:var(--s3);color:var(--muted)}
+.wp-schedule-row{display:grid;grid-template-columns:80px 1fr;gap:8px;padding:9px 0;border-bottom:1px solid var(--border);align-items:center}
+.wp-schedule-row:last-child{border-bottom:none}
+.wp-shift-badge{display:inline-block;padding:4px 12px;border-radius:6px;font-size:12px;font-weight:600}
+.req-badge-top{display:none;position:absolute;top:-6px;right:-6px;background:var(--red);color:#fff;border-radius:50%;width:18px;height:18px;font-size:10px;font-weight:700;align-items:center;justify-content:center}
+
 </style>
 </head>
 <body>
@@ -359,6 +377,9 @@ td.locked-cell::after{content:'🔒';position:absolute;top:1px;right:1px;font-si
       </div>
       <div style="display:flex;gap:8px;align-items:center">
         <button onclick="openWeeklyReport()" style="background:rgba(13,158,114,.1);border:1px solid rgba(13,158,114,.3);color:var(--teal);border-radius:8px;padding:9px 14px;font-size:13px;cursor:pointer;font-family:inherit">📊 דוח שבועי</button>
+        <button onclick="openWorkerRequests()" style="position:relative;background:rgba(124,58,237,.1);border:1px solid rgba(124,58,237,.3);color:#7c3aed;border-radius:8px;padding:9px 14px;font-size:13px;cursor:pointer;font-family:inherit">
+          📬 בקשות עובדים<span id="reqBadge" style="display:none;position:absolute;top:-6px;right:-6px;background:var(--red);color:#fff;border-radius:50%;width:18px;height:18px;font-size:10px;font-weight:700;align-items:center;justify-content:center;line-height:18px">0</span>
+        </button>
         <button id="adminBtn" onclick="openAdminPanel()" style="display:none;background:rgba(26,110,245,.1);border:1px solid var(--border2);color:var(--blue);border-radius:8px;padding:9px 16px;font-size:13px;cursor:pointer;font-family:inherit;align-items:center;gap:6px">👑 ניהול משתמשים</button>
         <button onclick="openCustomize()" style="background:rgba(13,158,114,.1);border:1px solid rgba(13,158,114,.3);color:var(--teal);border-radius:8px;padding:9px 14px;font-size:13px;cursor:pointer;font-family:inherit" title="התאמה אישית">⚙️</button>
         <button class="gen-btn" id="genBtn" onclick="buildSchedule()">
@@ -702,8 +723,15 @@ async function doLogin(){
       const md = await me.json();
       currentIsAdmin = md.isAdmin||false;
       err.classList.remove('vis');
-      showApp(md.username);
-      await loadState();
+      if(md.isAdmin){
+        showApp(md.username);
+        await loadState();
+        await loadNotes();
+        loadLockedSlots();
+        checkUnreadRequests();
+      } else {
+        showWorkerPortal(md.username);
+      }
     } else {
       err.textContent=d.error||'שם משתמש או סיסמה שגויים';
       err.classList.add('vis');
@@ -715,6 +743,7 @@ async function doLogout(){
   await fetch('/api/logout',{method:'POST'});
   currentIsAdmin=false;
   document.getElementById('appScreen').classList.remove('vis');
+  document.getElementById('workerScreen').classList.remove('vis');
   document.getElementById('loginScreen').style.display='flex';
   document.getElementById('loginPass').value='';
   document.getElementById('adminBtn').style.display='none';
@@ -925,6 +954,7 @@ function buildSchedule(){
 
   setTimeout(async ()=>{
     try {
+      await loadWorkerRequestsForAlgo();
       const result = runAlgorithm(getConstraints());
       lastSchedule=result.schedule; lastStats=result.stats;
       await fetch('/api/save-schedule',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({schedule:result.schedule,stats:result.stats})});
@@ -1588,10 +1618,15 @@ initWeekDate();
     const d = await r.json();
     if(d.authed){
       currentIsAdmin = d.isAdmin||false;
-      showApp(d.username);
-      await loadState();
-      await loadNotes();
-      loadLockedSlots();
+      if(d.isAdmin){
+        showApp(d.username);
+        await loadState();
+        await loadNotes();
+        loadLockedSlots();
+        checkUnreadRequests();
+      } else {
+        showWorkerPortal(d.username);
+      }
     }
   } catch(e){}
 })();
@@ -2306,6 +2341,202 @@ function shareAllWhatsApp(){
   window.open(`https://wa.me/?text=${encoded}`, '_blank');
 }
 
+
+// ═══════════════════════════════════════════════════════
+//  WORKER PORTAL JS
+// ═══════════════════════════════════════════════════════
+const WP_DAYS = ['ראשון','שני','שלישי','רביעי','חמישי','שישי','שבת'];
+let wpCurrentUser = '';
+
+function showWorkerPortal(username){
+  wpCurrentUser = username;
+  document.getElementById('loginScreen').style.display='none';
+  document.getElementById('appScreen').classList.remove('vis');
+  document.getElementById('workerScreen').classList.add('vis');
+  document.getElementById('wpUsername').textContent = username;
+  wpInitWeekDate();
+  wpInitDayPrefTable();
+  wpShowTab('requests');
+  // Listen to absence radio
+  document.querySelectorAll('input[name="wp_absence"]').forEach(r=>{
+    r.addEventListener('change',()=>{
+      const v=document.querySelector('input[name="wp_absence"]:checked')?.value;
+      document.getElementById('wpAbsenceDaysWrap').style.display=(v&&v!=='none')?'block':'none';
+    });
+  });
+}
+
+function wpInitWeekDate(){
+  const today=new Date();
+  const day=today.getDay();
+  const diff=day===0?1:(8-day)%7||7;
+  const next=new Date(today);
+  next.setDate(today.getDate()+diff);
+  document.getElementById('wpWeekStart').value=next.toISOString().split('T')[0];
+}
+
+function wpInitDayPrefTable(){
+  const hdr=document.getElementById('wpDayPrefHeader');
+  const row=document.getElementById('wpDayPrefRow');
+  if(!hdr||!row) return;
+  hdr.innerHTML='<th style="font-size:10px;padding:4px 6px;background:var(--s2);border:1px solid var(--border)">יום</th>'+
+    WP_DAYS.map(d=>`<th style="padding:4px 6px;background:var(--s2);border:1px solid var(--border);font-size:11px">${d.slice(0,2)}</th>`).join('');
+  row.innerHTML='<td style="font-size:10px;color:var(--muted);padding:4px 6px;border:1px solid var(--border)">משמרת</td>'+
+    WP_DAYS.map(d=>`<td style="border:1px solid var(--border);padding:2px"><select class="wp-daypref-sel" data-day="${d}" style="font-size:11px;background:var(--s3);border:none;border-radius:4px;padding:3px;color:var(--text);font-family:inherit;width:100%">
+      <option value="any">כלשהי</option>
+      <option value="בוקר">בוקר</option>
+      <option value="צהריים">צהריים</option>
+      <option value="לילה">לילה</option>
+    </select></td>`).join('');
+}
+
+function wpShowTab(tab){
+  document.getElementById('wpTabReqContent').style.display=tab==='requests'?'block':'none';
+  document.getElementById('wpTabSchedContent').style.display=tab==='schedule'?'block':'none';
+  document.getElementById('wpTabReqBtn').className='wp-tab '+(tab==='requests'?'active':'inactive');
+  document.getElementById('wpTabSchedBtn').className='wp-tab '+(tab==='schedule'?'active':'inactive');
+  if(tab==='schedule') wpLoadSchedule();
+}
+
+async function wpSubmitRequests(){
+  const weekStart=document.getElementById('wpWeekStart').value;
+  const comment=document.getElementById('wpComment').value;
+  const msg=document.getElementById('wpSubmitMsg');
+  if(!weekStart){alert('נא לבחור תאריך שבוע');return;}
+
+  // Collect all fields
+  const blockedDays=[...document.querySelectorAll('.wp-blocked:checked')].map(c=>c.value);
+  const prefShifts=[...document.querySelectorAll('.wp-pref:checked')].map(c=>c.value);
+  const absenceType=document.querySelector('input[name="wp_absence"]:checked')?.value||'none';
+  const absenceDays=absenceType!=='none'?[...document.querySelectorAll('.wp-abs-day:checked')].map(c=>c.value):[];
+  const dayPrefs={};
+  document.querySelectorAll('.wp-daypref-sel').forEach(sel=>{
+    if(sel.value!=='any') dayPrefs[sel.dataset.day]=sel.value;
+  });
+
+  const requests={blockedDays, prefShifts, absenceType, absenceDays, dayPrefs};
+
+  try {
+    const r=await fetch('/api/shift-request',{method:'POST',headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({weekStart, requests, comment})});
+    const d=await r.json();
+    if(d.ok){
+      msg.style.display='block';
+      msg.style.background='rgba(13,158,114,.1)';
+      msg.style.color='var(--teal)';
+      msg.style.border='1px solid rgba(13,158,114,.3)';
+      msg.textContent='✅ הבקשות נשלחו למנהל בהצלחה!';
+      setTimeout(()=>msg.style.display='none',4000);
+    } else {
+      msg.style.display='block';
+      msg.style.background='rgba(214,48,48,.07)';
+      msg.style.color='var(--red)';
+      msg.style.border='1px solid rgba(214,48,48,.2)';
+      msg.textContent='שגיאה: '+d.error;
+    }
+  } catch(e){
+    msg.style.display='block';
+    msg.style.color='var(--red)';
+    msg.textContent='שגיאת תקשורת';
+  }
+}
+
+async function wpLoadSchedule(){
+  const c=document.getElementById('wpScheduleContent');
+  c.innerHTML='<div style="text-align:center;color:var(--muted);padding:20px">טוען...</div>';
+  try {
+    const r=await fetch('/api/my-schedule',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({})});
+    const d=await r.json();
+    const sched=d.schedule||{};
+    const uname=d.username||wpCurrentUser;
+    const gen=d.generated?new Date(d.generated).toLocaleDateString('he-IL'):'';
+    if(!sched||!Object.keys(sched).length){
+      c.innerHTML='<div style="text-align:center;color:var(--muted);padding:24px;font-size:13px">הסידור טרם פורסם. נסה מאוחר יותר.</div>';
+      return;
+    }
+    const shColors={'בוקר':'background:#dbeafe;color:#1e40af','צהריים':'background:#d1fae5;color:#065f46','לילה':'background:#fef3c7;color:#92400e'};
+    let total=0;
+    let html=gen?`<div style="font-size:11px;color:var(--muted);margin-bottom:12px;text-align:center">עודכן: ${gen}</div>`:'';
+    html+=WP_DAYS.map(day=>{
+      const allShifts=Object.keys(sched[day]||{});
+      const myShift=allShifts.find(sh=>(sched[day][sh]||[]).includes(uname));
+      if(myShift) total++;
+      return `<div class="wp-schedule-row">
+        <div style="font-size:13px;font-weight:500">${day}</div>
+        <div>${myShift?`<span class="wp-shift-badge" style="${shColors[myShift]||'background:var(--s3)'}">${myShift}</span>`:'<span style="font-size:12px;color:var(--muted)">— חופש</span>'}</div>
+      </div>`;
+    }).join('');
+    html+=`<div style="margin-top:12px;padding-top:10px;border-top:1px solid var(--border);font-size:12px;color:var(--muted);text-align:center">סה״כ ${total} משמרות השבוע</div>`;
+    c.innerHTML=html;
+  } catch(e){
+    c.innerHTML='<div style="text-align:center;color:var(--red);padding:20px">שגיאה בטעינת הסידור</div>';
+  }
+}
+
+// ═══════════════════════════════════════════════════════
+//  MANAGER: VIEW + USE REQUESTS
+// ═══════════════════════════════════════════════════════
+async function checkUnreadRequests(){
+  try {
+    const r=await fetch('/api/shift-requests/unread',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({})});
+    const d=await r.json();
+    const badge=document.getElementById('reqBadge');
+    if(badge){ badge.textContent=d.count||0; badge.style.display=(d.count>0)?'inline-flex':'none'; }
+  } catch(e){}
+}
+
+async function openWorkerRequests(){
+  const weekStart=document.getElementById('weekStartDate')?.value||'';
+  try {
+    const r=await fetch('/api/shift-requests',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({weekStart})});
+    const d=await r.json();
+    const badge=document.getElementById('reqBadge');
+    if(badge) badge.style.display='none';
+    const reqs=d.requests||[];
+    if(!reqs.length){
+      document.getElementById('workerReqContent').innerHTML='<div style="text-align:center;color:var(--muted);padding:24px;font-size:13px">אין בקשות לשבוע זה</div>';
+    } else {
+      document.getElementById('workerReqContent').innerHTML=reqs.map(req=>{
+        const rq=req.requests||{};
+        const blocked=(rq.blockedDays||[]).join(', ')||'—';
+        const pref=(rq.prefShifts||[]).join(', ')||'—';
+        const absType=rq.absenceType||'none';
+        const absDays=(rq.absenceDays||[]).join(', ')||'כל השבוע';
+        const dayPrefs=Object.entries(rq.dayPrefs||{}).map(([d,v])=>`${d}: ${v}`).join(' | ')||'—';
+        return `<div style="background:var(--s2);border:1px solid var(--border);border-radius:9px;padding:14px;margin-bottom:10px">
+          <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px">
+            <div style="font-weight:600;font-size:14px">👤 ${req.username}</div>
+            <div style="font-size:10px;color:var(--muted)">${req.created?.slice(0,10)||''}</div>
+          </div>
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;font-size:12px">
+            <div><span style="color:var(--muted)">ימים חסומים:</span> <strong style="color:var(--red)">${blocked}</strong></div>
+            <div><span style="color:var(--muted)">משמרות מועדפות:</span> <strong style="color:var(--teal)">${pref}</strong></div>
+            <div><span style="color:var(--muted)">סטטוס:</span> <strong>${absType==='vacation'?'🏖️ חופש':absType==='sick'?'🤒 מחלה':'✅ פעיל'}</strong>${absType!=='none'?' ('+absDays+')':''}</div>
+            <div><span style="color:var(--muted)">העדפה ליום:</span> ${dayPrefs}</div>
+          </div>
+          ${req.comment?`<div style="margin-top:8px;padding-top:8px;border-top:1px solid var(--border);font-size:12px;color:var(--muted)">💬 ${req.comment}</div>`:''}
+        </div>`;
+      }).join('');
+    }
+    document.getElementById('workerReqOverlay').classList.add('open');
+  } catch(e){ alert('שגיאה בטעינת בקשות'); }
+}
+function closeWorkerRequests(){ document.getElementById('workerReqOverlay').classList.remove('open'); }
+
+// Load requests before building schedule
+async function loadWorkerRequestsForAlgo(){
+  try {
+    const weekStart=document.getElementById('weekStartDate')?.value||'';
+    const r=await fetch('/api/shift-requests',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({weekStart})});
+    const d=await r.json();
+    const lookup={};
+    (d.requests||[]).forEach(req=>{
+      lookup[req.username]=req.requests||{};
+    });
+    window._workerRequests=lookup;
+  } catch(e){ window._workerRequests={}; }
+}
+
 </script>
 <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
 
@@ -2442,6 +2673,129 @@ function shareAllWhatsApp(){
       <button onclick="closeWhyNot()" style="background:none;border:none;font-size:22px;cursor:pointer;color:var(--muted);line-height:1">×</button>
     </div>
     <div id="whyNotBody"></div>
+  </div>
+</div>
+
+
+<!-- WORKER PORTAL -->
+<div id="workerScreen">
+  <div class="wp-header">
+    <div class="wp-logo">🔷 ShiftCraft AI</div>
+    <div style="display:flex;align-items:center;gap:10px">
+      <span style="font-size:13px;color:var(--muted)" id="wpUsername"></span>
+      <button onclick="doLogout()" style="background:none;border:1px solid var(--border2);border-radius:6px;padding:5px 12px;font-size:12px;cursor:pointer;font-family:inherit;color:var(--muted)">יציאה</button>
+    </div>
+  </div>
+  <div class="wp-body">
+    <div class="wp-tab-bar">
+      <button class="wp-tab active" id="wpTabReqBtn" onclick="wpShowTab('requests')">📝 בקשות שבועיות</button>
+      <button class="wp-tab inactive" id="wpTabSchedBtn" onclick="wpShowTab('schedule')">📅 הסידור שלי</button>
+    </div>
+
+    <!-- REQUESTS TAB -->
+    <div id="wpTabReqContent">
+      <div class="wp-card">
+        <div class="wp-card-title">📝 בקשות לשבוע הבא</div>
+
+        <div class="frow" style="margin-bottom:14px">
+          <label class="flabel">שבוע (תאריך ראשון בשבוע)</label>
+          <input type="date" id="wpWeekStart" class="finput" style="margin-top:4px">
+        </div>
+
+        <!-- Blocked days -->
+        <div class="frow">
+          <label class="flabel">ימים שאני לא יכול לעבוד 🚫</label>
+          <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:5px;margin-top:4px" id="wpBlockedDays">
+            <label class="chk-item"><input type="checkbox" class="wp-blocked" value="ראשון"> ראשון</label>
+            <label class="chk-item"><input type="checkbox" class="wp-blocked" value="שני"> שני</label>
+            <label class="chk-item"><input type="checkbox" class="wp-blocked" value="שלישי"> שלישי</label>
+            <label class="chk-item"><input type="checkbox" class="wp-blocked" value="רביעי"> רביעי</label>
+            <label class="chk-item"><input type="checkbox" class="wp-blocked" value="חמישי"> חמישי</label>
+            <label class="chk-item"><input type="checkbox" class="wp-blocked" value="שישי"> שישי</label>
+            <label class="chk-item"><input type="checkbox" class="wp-blocked" value="שבת"> שבת</label>
+          </div>
+        </div>
+
+        <!-- Preferred shifts -->
+        <div class="frow">
+          <label class="flabel">משמרות מועדפות השבוע ✅</label>
+          <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:4px" id="wpPrefShifts">
+            <label class="chk-item"><input type="checkbox" class="wp-pref" value="בוקר"> בוקר</label>
+            <label class="chk-item"><input type="checkbox" class="wp-pref" value="צהריים"> צהריים</label>
+            <label class="chk-item"><input type="checkbox" class="wp-pref" value="לילה"> לילה</label>
+          </div>
+        </div>
+
+        <!-- Day-specific preference -->
+        <div class="frow">
+          <label class="flabel">העדפת משמרת לפי יום ספציפי (אופציונלי)</label>
+          <div style="overflow-x:auto;margin-top:6px">
+            <table class="daypref-table" id="wpDayPrefTable">
+              <thead><tr id="wpDayPrefHeader"></tr></thead>
+              <tbody><tr id="wpDayPrefRow"></tr></tbody>
+            </table>
+          </div>
+        </div>
+
+        <!-- Absence -->
+        <div class="frow">
+          <label class="flabel">חופש / מחלה 🏖️</label>
+          <div style="display:flex;gap:10px;margin-top:6px;flex-wrap:wrap">
+            <label style="display:flex;align-items:center;gap:5px;font-size:12px;cursor:pointer"><input type="radio" name="wp_absence" value="none" checked style="accent-color:var(--blue)"> ✅ פעיל</label>
+            <label style="display:flex;align-items:center;gap:5px;font-size:12px;color:var(--amber);cursor:pointer"><input type="radio" name="wp_absence" value="vacation" style="accent-color:var(--amber)"> 🏖️ חופש</label>
+            <label style="display:flex;align-items:center;gap:5px;font-size:12px;color:var(--red);cursor:pointer"><input type="radio" name="wp_absence" value="sick" style="accent-color:var(--red)"> 🤒 מחלה</label>
+          </div>
+        </div>
+        <div class="frow" id="wpAbsenceDaysWrap" style="display:none">
+          <label class="flabel">בחר ימים ספציפיים (השאר ריק = כל השבוע)</label>
+          <div style="display:flex;flex-wrap:wrap;gap:5px;margin-top:5px" id="wpAbsenceDays">
+            <label class="chk-item"><input type="checkbox" class="wp-abs-day" value="ראשון"> ראשון</label>
+            <label class="chk-item"><input type="checkbox" class="wp-abs-day" value="שני"> שני</label>
+            <label class="chk-item"><input type="checkbox" class="wp-abs-day" value="שלישי"> שלישי</label>
+            <label class="chk-item"><input type="checkbox" class="wp-abs-day" value="רביעי"> רביעי</label>
+            <label class="chk-item"><input type="checkbox" class="wp-abs-day" value="חמישי"> חמישי</label>
+            <label class="chk-item"><input type="checkbox" class="wp-abs-day" value="שישי"> שישי</label>
+            <label class="chk-item"><input type="checkbox" class="wp-abs-day" value="שבת"> שבת</label>
+          </div>
+        </div>
+
+        <!-- Notes -->
+        <div class="frow">
+          <label class="flabel">הערה למנהל (אופציונלי)</label>
+          <textarea id="wpComment" class="finput" style="margin-top:4px;min-height:60px;resize:vertical;line-height:1.6" placeholder="לדוגמא: ביום שלישי יש לי אירוע משפחתי, מועדף לא לעבוד לילה..."></textarea>
+        </div>
+
+        <button onclick="wpSubmitRequests()" style="width:100%;margin-top:6px;background:var(--blue);color:#fff;border:none;border-radius:8px;padding:13px;font-size:14px;font-weight:600;cursor:pointer;font-family:inherit">
+          📤 שלח בקשות למנהל
+        </button>
+        <div id="wpSubmitMsg" style="display:none;margin-top:10px;text-align:center;font-size:13px;padding:8px;border-radius:7px"></div>
+      </div>
+    </div>
+
+    <!-- SCHEDULE TAB -->
+    <div id="wpTabSchedContent" style="display:none">
+      <div class="wp-card">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px">
+          <div class="wp-card-title" style="margin:0">📅 הסידור שלי</div>
+          <button onclick="wpLoadSchedule()" style="background:var(--s3);border:1px solid var(--border2);border-radius:6px;padding:5px 12px;font-size:11px;cursor:pointer;font-family:inherit">🔄 רענן</button>
+        </div>
+        <div id="wpScheduleContent"><div style="text-align:center;color:var(--muted);padding:20px">טוען...</div></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+
+<!-- WORKER REQUESTS MODAL (MANAGER) -->
+<div class="overlay" id="workerReqOverlay">
+  <div class="modal" style="width:600px;max-height:88vh;overflow-y:auto">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px">
+      <div style="font-size:16px;font-weight:600">📬 בקשות עובדים</div>
+      <button onclick="closeWorkerRequests()" style="background:none;border:none;font-size:22px;cursor:pointer;color:var(--muted);line-height:1">×</button>
+    </div>
+    <div style="font-size:12px;color:var(--muted);margin-bottom:12px">בקשות לשבוע שנבחר בלוח. האלגוריתם מתחשב בהן אוטומטית בבנייה.</div>
+    <div id="workerReqContent"></div>
+    <div class="mactions"><button class="btn-cancel" onclick="closeWorkerRequests()">סגור</button></div>
   </div>
 </div>
 
