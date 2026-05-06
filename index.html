@@ -15,6 +15,24 @@
   --font-size: 14px;
 }
 body { font-size: var(--font-size); }
+
+@media (max-width: 768px) {
+  #appScreen.vis { grid-template-columns: 1fr !important; }
+  .sidebar { 
+    width: 100%; border-left: none; 
+    border-bottom: 1px solid var(--border);
+    padding: 12px;
+    max-height: 280px;
+    overflow-y: auto;
+  }
+  .main { padding: 14px; }
+  .topbar { flex-direction: column; align-items: flex-start; gap: 10px; }
+  .gen-btn { width: 100%; justify-content: center; }
+  table.sgrid { font-size: 10px; }
+  table.sgrid th, table.sgrid td { padding: 4px 3px; }
+  .stats-row .stat { min-width: 70px; }
+  .modal { width: 95vw !important; max-width: 95vw !important; }
+}
 body{background:var(--bg);color:var(--text);font-family:'IBM Plex Sans Hebrew',sans-serif;font-size:14px;line-height:1.6;min-height:100vh}
 
 /* LOGIN */
@@ -247,6 +265,8 @@ table.sgrid td.nc{text-align:right;font-weight:500;background:var(--s2);color:va
             <input type="date" id="weekStartDate" style="background:transparent;border:none;color:var(--text);font-size:12px;font-family:monospace;cursor:pointer;outline:none" onchange="updateScheduleDates()">
           </div>
           <div class="export-bar">
+            <button class="exp-btn" onclick="saveScheduleDialog()">💾 שמור לוח</button>
+            <button class="exp-btn" onclick="openSavedSchedules()">📂 לוחות שמורים</button>
             <button class="exp-btn" onclick="exportCSV()">📄 CSV</button>
             <button class="exp-btn" onclick="exportExcel()">📊 Excel</button>
             <button class="exp-btn" onclick="window.print()">🖨️ PDF</button>
@@ -259,6 +279,13 @@ table.sgrid td.nc{text-align:right;font-weight:500;background:var(--s2);color:va
         <div class="v-title">⚠️ התראות</div>
         <div id="violList"></div>
       </div>
+      <!-- STATS PANEL -->
+      <div id="statsPanel" style="display:none;margin-top:16px">
+        <div style="font-size:13px;font-weight:600;margin-bottom:10px">📊 סטטיסטיקות עובדים</div>
+        <div id="statsPanelContent"></div>
+      </div>
+      <button onclick="toggleStats()" id="statsToggleBtn" style="margin-top:10px;background:none;border:1px solid var(--border2);border-radius:7px;padding:6px 14px;cursor:pointer;font-size:12px;color:var(--muted);font-family:inherit;display:none">📊 הצג סטטיסטיקות</button>
+
       <div style="display:flex;gap:12px;flex-wrap:wrap;margin-top:10px;font-size:11px;color:var(--muted)">
         <span>🎂 יום הולדת</span>
         <span>🏃 מחוץ למשרד</span>
@@ -306,6 +333,32 @@ table.sgrid td.nc{text-align:right;font-weight:500;background:var(--s2);color:va
     </div>
     <div class="mactions" style="margin-top:12px">
       <button class="btn-cancel" onclick="closeAdminPanel()">סגור</button>
+    </div>
+  </div>
+</div>
+
+<!-- SAVED SCHEDULES MODAL -->
+<div class="overlay" id="savedSchedOverlay">
+  <div class="modal" style="width:540px;max-height:88vh;overflow-y:auto">
+    <div class="modal-title">📂 לוחות משמרות שמורים</div>
+    <div id="savedSchedList" style="margin-bottom:14px"></div>
+    <div class="mactions">
+      <button class="btn-cancel" onclick="closeSavedSchedules()">סגור</button>
+    </div>
+  </div>
+</div>
+
+<!-- SHIFT NOTE MODAL -->
+<div class="overlay" id="shiftNoteOverlay">
+  <div class="modal" style="width:400px">
+    <div class="modal-title" id="shiftNoteTitle">💬 הערה למשמרת</div>
+    <div class="frow">
+      <label class="flabel">הערה</label>
+      <textarea class="finput" id="shiftNoteText" rows="4" placeholder="הוסף הערה למשמרת זו..." style="resize:vertical"></textarea>
+    </div>
+    <div class="mactions">
+      <button class="btn-cancel" onclick="closeShiftNote()">ביטול</button>
+      <button class="btn-save" onclick="saveShiftNote()">שמור</button>
     </div>
   </div>
 </div>
@@ -695,6 +748,8 @@ function openModal(){
   document.querySelectorAll('#blockedDaysGroup input,#prefShiftsGroup input').forEach(c=>c.checked=false);
   document.getElementById('f_birthday').value='';
   document.querySelectorAll('.officeout-day,.training-day').forEach(c=>c.checked=false);
+  const awEl=document.getElementById('absenceAllWeek');
+  if(awEl) awEl.checked=false;
   const sr=document.querySelector('input[name="f_absence_type"][value="none"]');
   if(sr) sr.checked=true;
   document.querySelectorAll('.abs-day').forEach(c=>c.checked=false);
@@ -975,6 +1030,11 @@ function renderSchedule(result, fromCache){
 
   document.getElementById('schedTitle').textContent=`לוח משמרות שבועי — ${workers.length} עובדים${fromCache?' (שמור)':''}`;
   document.getElementById('schedWrap').classList.add('vis');
+  // Show stats button
+  document.getElementById('statsToggleBtn').style.display='inline-flex';
+  if(statsVisible) renderStatsPanel();
+  // Load notes for this week
+  loadShiftNotes();
 }
 
 // ═══════════════════════════════════════════════════════
@@ -1099,15 +1159,18 @@ function getDateForDay(dayIndex){
 //  CUSTOMIZATION
 // ═══════════════════════════════════
 function openCustomize(){
-  const fs = parseInt(getComputedStyle(document.documentElement).getPropertyValue('--font-size'))||14;
-  document.getElementById('fontSizeLabel').textContent=fs+'px';
-  document.getElementById('customizeOverlay').classList.add('open');
+  const fs = parseInt(getComputedStyle(document.documentElement).getPropertyValue('--font-size').trim())||14;
+  const lbl=document.getElementById('fontSizeLabel');
+  if(lbl) lbl.textContent=fs+'px';
+  const ov=document.getElementById('customizeOverlay');
+  if(ov) ov.classList.add('open');
 }
 function closeCustomize(){
   document.getElementById('customizeOverlay').classList.remove('open');
   saveCustomize();
 }
-document.getElementById('customizeOverlay').addEventListener('click',e=>{if(e.target===e.currentTarget)closeCustomize()});
+const custOverlay=document.getElementById('customizeOverlay');
+if(custOverlay) custOverlay.addEventListener('click',e=>{if(e.target===e.currentTarget)closeCustomize()});
 
 function changeFontSize(delta){
   const root=document.documentElement;
@@ -1177,7 +1240,8 @@ async function openReport(){
   document.getElementById('reportOverlay').classList.add('open');
 }
 function closeReport(){ document.getElementById('reportOverlay').classList.remove('open'); }
-document.getElementById('reportOverlay').addEventListener('click',e=>{if(e.target===e.currentTarget)closeReport()});
+const repOverlay=document.getElementById('reportOverlay');
+if(repOverlay) repOverlay.addEventListener('click',e=>{if(e.target===e.currentTarget)closeReport()});
 
 let reportUsersData=[];
 
@@ -1283,6 +1347,10 @@ async function loadAdminUsers(){
   } catch(e){ console.error(e); }
 }
 
+function toggleAllAbsenceDays(checked){
+  document.querySelectorAll('.abs-day').forEach(c=>c.checked=checked);
+}
+
 function showChangePw(id,username){
   changePwUserId=id;
   document.getElementById('changePwTitle').textContent=`סיסמה חדשה — ${username}`;
@@ -1336,6 +1404,162 @@ function showAdminMsg(text,color){
   const el=document.getElementById('adminMsg');
   el.textContent=text; el.style.color=color; el.style.display='block';
   setTimeout(()=>el.style.display='none',3000);
+}
+
+
+// ═══════════════════════════════════
+//  SAVED SCHEDULES
+// ═══════════════════════════════════
+async function saveScheduleDialog(){
+  if(!lastSchedule){ alert('יש לבנות לוח תחילה'); return; }
+  const name = prompt('שם הלוח:', `לוח ${document.getElementById('weekStartDate')?.value||new Date().toLocaleDateString('he-IL')}`);
+  if(!name) return;
+  const weekStart = document.getElementById('weekStartDate')?.value||'';
+  try {
+    const r=await fetch('/api/schedules/save',{method:'POST',headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({name,weekStart,data:{schedule:lastSchedule,stats:lastStats,workers:[...workers]}})});
+    const d=await r.json();
+    if(d.ok) alert('✓ הלוח נשמר בהצלחה!');
+    else alert(d.error||'שגיאה');
+  } catch(e){ alert('שגיאת תקשורת'); }
+}
+
+async function openSavedSchedules(){
+  await loadSavedSchedules();
+  document.getElementById('savedSchedOverlay').classList.add('open');
+}
+function closeSavedSchedules(){ document.getElementById('savedSchedOverlay').classList.remove('open'); }
+document.addEventListener('DOMContentLoaded',()=>{
+  const ov=document.getElementById('savedSchedOverlay');
+  if(ov) ov.addEventListener('click',e=>{if(e.target===e.currentTarget)closeSavedSchedules()});
+  const sno=document.getElementById('shiftNoteOverlay');
+  if(sno) sno.addEventListener('click',e=>{if(e.target===e.currentTarget)closeShiftNote()});
+});
+
+async function loadSavedSchedules(){
+  try {
+    const r=await fetch('/api/schedules/list',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({})});
+    const d=await r.json();
+    const el=document.getElementById('savedSchedList');
+    if(!d.schedules||!d.schedules.length){
+      el.innerHTML='<div style="text-align:center;color:var(--muted);padding:20px">אין לוחות שמורים עדיין</div>';
+      return;
+    }
+    el.innerHTML=d.schedules.map(s=>`
+      <div style="display:flex;align-items:center;justify-content:space-between;padding:10px 12px;background:var(--s3);border-radius:8px;margin-bottom:7px;border:1px solid var(--border)">
+        <div>
+          <div style="font-weight:500;font-size:13px">${s.name}</div>
+          <div style="font-size:11px;color:var(--muted)">${s.week_start||''} | נשמר: ${s.created||''}</div>
+        </div>
+        <div style="display:flex;gap:6px">
+          <button onclick="loadSavedSchedule(${s.id})" style="background:var(--blue);border:none;border-radius:6px;color:#fff;cursor:pointer;font-size:12px;padding:4px 10px;font-family:inherit">טען</button>
+          <button onclick="deleteSavedSchedule(${s.id})" style="background:none;border:1px solid rgba(214,48,48,.3);border-radius:6px;color:var(--red);cursor:pointer;font-size:12px;padding:4px 8px;font-family:inherit">🗑️</button>
+        </div>
+      </div>`).join('');
+  } catch(e){ console.error(e); }
+}
+
+async function loadSavedSchedule(id){
+  try {
+    const r=await fetch('/api/schedules/load',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({id})});
+    const d=await r.json();
+    if(d.data){
+      lastSchedule=d.data.schedule;
+      lastStats=d.data.stats;
+      if(d.data.workers) workers=d.data.workers;
+      renderWorkers();
+      renderSchedule({schedule:d.data.schedule,stats:d.data.stats,violations:[],notes:'לוח טעון מהאחסון'},true);
+      closeSavedSchedules();
+    }
+  } catch(e){ alert('שגיאה בטעינה'); }
+}
+
+async function deleteSavedSchedule(id){
+  if(!confirm('למחוק לוח זה?')) return;
+  const r=await fetch('/api/schedules/delete',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({id})});
+  const d=await r.json();
+  if(d.ok) await loadSavedSchedules();
+}
+
+// ═══════════════════════════════════
+//  SHIFT NOTES
+// ═══════════════════════════════════
+let shiftNoteContext = null;
+let shiftNotes = {};
+
+async function loadShiftNotes(){
+  const weekStart=document.getElementById('weekStartDate')?.value||'';
+  if(!weekStart) return;
+  try {
+    const r=await fetch('/api/notes/load',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({weekStart})});
+    const d=await r.json();
+    shiftNotes=d.notes||{};
+  } catch(e){ console.error(e); }
+}
+
+function openShiftNote(day, shift){
+  shiftNoteContext={day,shift};
+  const key=`${day}_${shift}`;
+  document.getElementById('shiftNoteTitle').textContent=`💬 הערה — ${day} ${shift}`;
+  document.getElementById('shiftNoteText').value=shiftNotes[key]||'';
+  document.getElementById('shiftNoteOverlay').classList.add('open');
+}
+function closeShiftNote(){ document.getElementById('shiftNoteOverlay').classList.remove('open'); shiftNoteContext=null; }
+
+async function saveShiftNote(){
+  if(!shiftNoteContext) return;
+  const weekStart=document.getElementById('weekStartDate')?.value||'';
+  const note=document.getElementById('shiftNoteText').value.trim();
+  const key=`${shiftNoteContext.day}_${shiftNoteContext.shift}`;
+  if(note) shiftNotes[key]=note; else delete shiftNotes[key];
+  try {
+    await fetch('/api/notes/save',{method:'POST',headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({weekStart,day:shiftNoteContext.day,shift:shiftNoteContext.shift,note})});
+  } catch(e){ console.error(e); }
+  closeShiftNote();
+  // Re-render to show note indicator
+  if(lastSchedule) renderSchedule({schedule:lastSchedule,stats:lastStats,violations:[],notes:null},true);
+}
+
+// ═══════════════════════════════════
+//  STATS PANEL
+// ═══════════════════════════════════
+let statsVisible = false;
+
+function toggleStats(){
+  statsVisible=!statsVisible;
+  document.getElementById('statsPanel').style.display=statsVisible?'block':'none';
+  document.getElementById('statsToggleBtn').textContent=statsVisible?'📊 הסתר סטטיסטיקות':'📊 הצג סטטיסטיקות';
+  if(statsVisible) renderStatsPanel();
+}
+
+function renderStatsPanel(){
+  if(!lastStats) return;
+  const rows=workers.map(w=>{
+    const s=lastStats[w.name]||{};
+    const total=s.total_shifts||0;
+    const nights=s.nights||0;
+    const weekend=s.weekend||0;
+    const weekdays=s.weekdays||0;
+    const pct=Math.round((total/Math.max(1,...Object.values(lastStats).map(x=>x.total_shifts||0)))*100);
+    return `<div style="display:flex;align-items:center;gap:10px;padding:8px 12px;background:var(--s3);border-radius:7px;margin-bottom:6px;border:1px solid var(--border)">
+      <div style="width:28px;height:28px;border-radius:50%;background:var(--blue);display:flex;align-items:center;justify-content:center;color:#fff;font-size:11px;font-weight:700;flex-shrink:0">${w.name[0]}</div>
+      <div style="flex:1;min-width:0">
+        <div style="font-weight:500;font-size:13px">${w.name}</div>
+        <div style="display:flex;gap:8px;margin-top:3px;flex-wrap:wrap">
+          <span style="font-size:11px;color:var(--blue)">⚡ ${total} משמרות</span>
+          <span style="font-size:11px;color:var(--amber)">🌙 ${nights} לילות</span>
+          <span style="font-size:11px;color:var(--teal)">📅 ${weekdays} א-ה</span>
+          <span style="font-size:11px;color:var(--muted)">📆 ${weekend} סופ״ש</span>
+        </div>
+        <div style="margin-top:5px;height:4px;background:var(--s2);border-radius:2px;overflow:hidden">
+          <div style="height:100%;width:${pct}%;background:var(--blue);border-radius:2px;transition:width .3s"></div>
+        </div>
+      </div>
+      <div style="font-size:20px;font-weight:700;color:var(--blue);font-family:monospace;flex-shrink:0">${total}</div>
+    </div>`;
+  }).join('');
+  document.getElementById('statsPanelContent').innerHTML=rows;
 }
 
 loadCustomize();

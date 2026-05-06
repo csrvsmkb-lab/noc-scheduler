@@ -129,6 +129,25 @@ def init_db():
             updated  TEXT DEFAULT (datetime('now')),
             FOREIGN KEY(user_id) REFERENCES users(id)
         );
+        CREATE TABLE IF NOT EXISTS saved_schedules (
+            id       INTEGER PRIMARY KEY AUTOINCREMENT,
+            user_id  INTEGER NOT NULL,
+            name     TEXT NOT NULL,
+            week_start TEXT,
+            schedule_data TEXT NOT NULL,
+            created  TEXT DEFAULT (datetime('now')),
+            FOREIGN KEY(user_id) REFERENCES users(id)
+        );
+        CREATE TABLE IF NOT EXISTS shift_notes (
+            id       INTEGER PRIMARY KEY AUTOINCREMENT,
+            user_id  INTEGER NOT NULL,
+            week_start TEXT,
+            day      TEXT NOT NULL,
+            shift    TEXT NOT NULL,
+            note     TEXT NOT NULL,
+            created  TEXT DEFAULT (datetime('now')),
+            FOREIGN KEY(user_id) REFERENCES users(id)
+        );
         """
         execute_sql(db, sql)
     # Migrate columns if missing
@@ -472,6 +491,68 @@ class Handler(http.server.BaseHTTPRequestHandler):
             d['lastGenerated'] = datetime.now().isoformat()
             save_user_data(user_id, d)
             return self.send_json(200, {'ok': True})
+
+        # ── List saved schedules (POST) ──────────────────
+        if path == '/api/schedules/list':
+            with get_db() as db:
+                rows = fetchall(db, "SELECT id,name,week_start,created FROM saved_schedules WHERE user_id=? ORDER BY created DESC LIMIT 20", (user_id,))
+            return self.send_json(200, {'schedules': rows})
+
+        # ── Save named schedule ───────────────────────────
+        if path == '/api/schedules/save':
+            name       = payload.get('name','לוח ללא שם')
+            week_start = payload.get('weekStart','')
+            data       = json.dumps(payload.get('data',{}), ensure_ascii=False)
+            with get_db() as db:
+                execute(db, "INSERT INTO saved_schedules (user_id,name,week_start,schedule_data) VALUES (?,?,?,?)",
+                       (user_id, name, week_start, data))
+            return self.send_json(200, {'ok': True})
+
+        # ── List saved schedules ──────────────────────────
+        if path == '/api/schedules/list':
+            with get_db() as db:
+                rows = fetchall(db, "SELECT id,name,week_start,created FROM saved_schedules WHERE user_id=? ORDER BY created DESC LIMIT 20", (user_id,))
+            return self.send_json(200, {'schedules': [dict(r) for r in rows]})
+
+        # ── Load saved schedule ───────────────────────────
+        if path == '/api/schedules/load':
+            sid = payload.get('id')
+            with get_db() as db:
+                row = fetchone(db, "SELECT schedule_data FROM saved_schedules WHERE id=? AND user_id=?", (sid, user_id))
+            if row:
+                return self.send_json(200, {'data': json.loads(row['schedule_data'])})
+            return self.send_json(404, {'error': 'לא נמצא'})
+
+        # ── Delete saved schedule ─────────────────────────
+        if path == '/api/schedules/delete':
+            sid = payload.get('id')
+            with get_db() as db:
+                execute(db, "DELETE FROM saved_schedules WHERE id=? AND user_id=?", (sid, user_id))
+            return self.send_json(200, {'ok': True})
+
+        # ── Save shift note ───────────────────────────────
+        if path == '/api/notes/save':
+            week_start = payload.get('weekStart','')
+            day   = payload.get('day','')
+            shift = payload.get('shift','')
+            note  = payload.get('note','')
+            with get_db() as db:
+                # Upsert - delete existing and insert new
+                execute(db, "DELETE FROM shift_notes WHERE user_id=? AND week_start=? AND day=? AND shift=?",
+                       (user_id, week_start, day, shift))
+                if note.strip():
+                    execute(db, "INSERT INTO shift_notes (user_id,week_start,day,shift,note) VALUES (?,?,?,?,?)",
+                           (user_id, week_start, day, shift, note))
+            return self.send_json(200, {'ok': True})
+
+        # ── Load shift notes ──────────────────────────────
+        if path == '/api/notes/load':
+            week_start = payload.get('weekStart','')
+            with get_db() as db:
+                rows = fetchall(db, "SELECT day,shift,note FROM shift_notes WHERE user_id=? AND week_start=?",
+                               (user_id, week_start))
+            notes = {f"{r['day']}_{r['shift']}": r['note'] for r in rows}
+            return self.send_json(200, {'notes': notes})
 
         self.send_json(404, {'error': 'Not found'})
 
