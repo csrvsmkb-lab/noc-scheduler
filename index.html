@@ -3040,8 +3040,14 @@ function openAddManagerModal(cid,cname){
   document.getElementById('addMgrPw').value='';
   document.getElementById('addMgrMsg').style.display='none';
   const sel=document.getElementById('addMgrCompSel');
-  sel.innerHTML='<option value="">— בחר חברה —</option>'+_adCompanies.map(c=>`<option value="${c.id}" ${c.id==cid?'selected':''}>${c.name}</option>`).join('');
+  sel.innerHTML='<option value="">— ללא חברה / בחר —</option>'+_adCompanies.map(c=>`<option value="${c.id}" ${c.id==cid?'selected':''}>${c.name}</option>`).join('');
   document.getElementById('addMgrTitle').textContent=cname?`הוסף מנהל — ${cname}`:'הוסף מנהל משמרות';
+  // Always show superadmin option (only superadmin can open this modal anyway)
+  const adminOpt=document.getElementById('addMgrAdminOption');
+  if(adminOpt) adminOpt.style.display='flex';
+  // Reset radio to manager
+  const managerRadio=document.querySelector('input[name="addMgrRole"][value="manager"]');
+  if(managerRadio) managerRadio.checked=true;
   document.getElementById('addMgrOverlay').classList.add('open');
 }
 function closeAddManagerModal(){document.getElementById('addMgrOverlay').classList.remove('open');}
