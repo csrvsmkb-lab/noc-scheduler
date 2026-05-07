@@ -2981,7 +2981,8 @@ async function submitAddManager(){
   if(pw.length<4){msg.style.cssText='display:block;color:var(--red)';msg.textContent='סיסמה מינ׳ 4 תווים';return;}
   const mgrRole=document.querySelector('input[name="mgrRole"]:checked')?.value||'manager';
   const isSuperAdmin=mgrRole==='superadmin';
-  const d=await fetch('/api/register',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({username:un,password:pw,is_admin:true,is_superadmin:isSuperAdmin,company_id:cid})}).then(r=>r.json());
+  const payload={username:un,password:pw,is_admin:mgrRole!=='worker',is_superadmin:isSuperAdmin,company_id:cid||null};
+  const d=await fetch('/api/register',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)}).then(r=>r.json());
   if(d.ok){msg.style.cssText='display:block;color:var(--teal)';msg.textContent='✓ מנהל נוצר';setTimeout(()=>{closeAddManagerModal();loadAdminDash();},1000);}
   else{msg.style.cssText='display:block;color:var(--red)';msg.textContent=d.error||'שגיאה';}
 }
@@ -3154,26 +3155,77 @@ function renderCompanyChart(breakdown){
     return;
   }
   const maxUsers = Math.max(...breakdown.map(c=>c.managers+c.workers), 1);
-  el.innerHTML = breakdown.map(c=>{
+  const totalMgr = breakdown.reduce((s,c)=>s+c.managers,0);
+  const totalWrk = breakdown.reduce((s,c)=>s+c.workers,0);
+  const totalAll = totalMgr + totalWrk;
+
+  // Summary row
+  let html = `<div style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-bottom:14px">
+    <div style="background:var(--s2);border-radius:7px;padding:10px;text-align:center">
+      <div style="font-size:20px;font-weight:700;color:#7c3aed">${totalMgr}</div>
+      <div style="font-size:10px;color:var(--muted)">מנהלי משמרות</div>
+    </div>
+    <div style="background:var(--s2);border-radius:7px;padding:10px;text-align:center">
+      <div style="font-size:20px;font-weight:700;color:var(--teal)">${totalWrk}</div>
+      <div style="font-size:10px;color:var(--muted)">עובדים</div>
+    </div>
+    <div style="background:var(--s2);border-radius:7px;padding:10px;text-align:center">
+      <div style="font-size:20px;font-weight:700;color:var(--blue)">${totalAll}</div>
+      <div style="font-size:10px;color:var(--muted)">סה״כ</div>
+    </div>
+  </div>`;
+
+  // Per-company bars
+  html += `<div style="margin-bottom:10px;font-size:11px;font-weight:600;color:var(--muted)">פילוח לפי חברה</div>`;
+  html += breakdown.map(c=>{
     const total = c.managers + c.workers;
-    const mgrPct = total>0 ? Math.round(c.managers/total*100) : 0;
-    const wrkPct = 100-mgrPct;
-    const barW = Math.max(4, Math.round(total/maxUsers*100));
-    const planColor = c.plan==='pro'?'var(--blue)':c.plan==='enterprise'?'#7c3aed':'var(--dim)';
-    return `<div style="display:grid;grid-template-columns:140px 1fr 80px;align-items:center;gap:10px;padding:4px 0;border-bottom:1px solid var(--border)">
-      <div style="font-size:12px;font-weight:500;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${c.name}</div>
-      <div style="background:var(--s3);border-radius:4px;height:18px;overflow:hidden;position:relative">
-        <div style="position:absolute;right:0;top:0;height:100%;width:${barW}%;background:var(--blue);opacity:.7;border-radius:4px;transition:width .4s"></div>
-        <div style="position:absolute;right:0;top:0;height:100%;width:${Math.round(c.managers/maxUsers*100)}%;background:#7c3aed;opacity:.8;border-radius:4px;transition:width .4s"></div>
+    const barW = Math.max(3, Math.round(total/maxUsers*100));
+    const mgrW = total>0 ? Math.round(c.managers/total*100) : 0;
+    const planBadge = c.plan==='pro'?'background:rgba(26,110,245,.1);color:var(--blue)':
+                      c.plan==='enterprise'?'background:rgba(124,58,237,.1);color:#7c3aed':
+                      'background:rgba(90,100,120,.1);color:var(--muted)';
+    const statusDot = c.active ? '#10b981' : '#ef4444';
+    return `<div style="display:grid;grid-template-columns:24px 130px 1fr 90px;align-items:center;gap:8px;padding:5px 0;border-bottom:1px solid var(--border)">
+      <div style="width:8px;height:8px;border-radius:50%;background:${statusDot};margin:0 auto"></div>
+      <div style="font-size:12px;font-weight:500;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${c.name}">${c.name}</div>
+      <div style="background:var(--s3);border-radius:4px;height:20px;overflow:hidden;position:relative">
+        <div style="position:absolute;right:0;top:0;height:100%;width:${barW}%;background:rgba(45,212,191,.25);border-radius:4px"></div>
+        <div style="position:absolute;right:0;top:0;height:100%;width:${Math.round(c.managers/maxUsers*100)}%;background:rgba(124,58,237,.4);border-radius:4px"></div>
+        <div style="position:absolute;right:8px;top:50%;transform:translateY(-50%);font-size:10px;color:var(--text);white-space:nowrap">${total} משתמשים</div>
       </div>
-      <div style="font-size:11px;color:var(--muted);text-align:left">
-        <span style="color:#7c3aed">${c.managers} מנהלים</span> / <span style="color:var(--teal)">${c.workers} עובדים</span>
+      <div style="font-size:10px;color:var(--muted);display:flex;flex-direction:column;gap:1px">
+        <span style="color:#7c3aed">👔 ${c.managers}</span>
+        <span style="color:var(--teal)">👤 ${c.workers}</span>
       </div>
     </div>`;
-  }).join('') + `
-    <div style="display:flex;gap:16px;margin-top:8px;font-size:10px;color:var(--muted)">
-      <span>🟦 עובדים</span><span style="color:#7c3aed">🟪 מנהלים</span>
-    </div>`;
+  }).join('');
+
+  // Plan distribution donut (simple CSS)
+  const plans = {trial:0,pro:0,enterprise:0};
+  breakdown.forEach(c=>plans[c.plan]=(plans[c.plan]||0)+1);
+  const planTotal = breakdown.length;
+  html += `<div style="margin-top:14px;padding-top:12px;border-top:1px solid var(--border)">
+    <div style="font-size:11px;font-weight:600;color:var(--muted);margin-bottom:8px">התפלגות תוכניות</div>
+    <div style="display:flex;gap:16px;flex-wrap:wrap">
+      <div style="display:flex;align-items:center;gap:6px">
+        <div style="width:10px;height:10px;border-radius:2px;background:var(--dim)"></div>
+        <span style="font-size:11px">Trial: <strong>${plans.trial}</strong></span>
+        <span style="font-size:10px;color:var(--muted)">(${planTotal?Math.round(plans.trial/planTotal*100):0}%)</span>
+      </div>
+      <div style="display:flex;align-items:center;gap:6px">
+        <div style="width:10px;height:10px;border-radius:2px;background:var(--blue)"></div>
+        <span style="font-size:11px">Pro: <strong>${plans.pro}</strong></span>
+        <span style="font-size:10px;color:var(--muted)">(${planTotal?Math.round(plans.pro/planTotal*100):0}%)</span>
+      </div>
+      <div style="display:flex;align-items:center;gap:6px">
+        <div style="width:10px;height:10px;border-radius:2px;background:#7c3aed"></div>
+        <span style="font-size:11px">Enterprise: <strong>${plans.enterprise}</strong></span>
+        <span style="font-size:10px;color:var(--muted)">(${planTotal?Math.round(plans.enterprise/planTotal*100):0}%)</span>
+      </div>
+    </div>
+  </div>`;
+
+  el.innerHTML = html;
 }
 
 

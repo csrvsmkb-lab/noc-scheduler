@@ -513,10 +513,14 @@ class Handler(http.server.BaseHTTPRequestHandler):
             if not is_super:
                 new_user_is_admin = new_user_is_admin  # keep, just not superadmin
                 new_is_superadmin = False
+            company_id = payload.get('company_id') or None
+            new_role = 'superadmin' if (new_user_is_admin and new_is_superadmin) else ('manager' if new_user_is_admin else 'worker')
             if create_user(username, password):
-                if new_user_is_admin:
-                    with get_db() as db:
-                        execute(db, "UPDATE users SET is_admin=1 WHERE username=?", (username,))
+                with get_db() as db:
+                    if new_user_is_admin:
+                        execute(db,"UPDATE users SET is_admin=1,company_id=? WHERE username=?",(company_id,username))
+                    elif company_id:
+                        execute(db,"UPDATE users SET company_id=? WHERE username=?",(company_id,username))
                 if is_admin:
                     return self.send_json(200, {'ok': True, 'created': username})
                 uid = check_user(username, password)
