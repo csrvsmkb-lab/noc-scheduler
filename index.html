@@ -57,8 +57,7 @@ body{background:var(--bg);color:var(--text);font-family:'IBM Plex Sans Hebrew',s
 
 /* APP */
 #appScreen{display:none}
-#appScreen.vis{display:grid;grid-template-columns:280px 1fr;min-height:100vh}
-#appScreen.vis{display:grid;grid-template-columns:300px 1fr;min-height:100vh}
+#appScreen.vis{display:grid!important;grid-template-columns:280px 1fr;min-height:100vh}
 
 .sidebar{background:var(--s1);border-left:1px solid var(--border);padding:18px 14px;display:flex;flex-direction:column;gap:16px;overflow-y:auto}
 .logo{display:flex;align-items:center;gap:10px;padding-bottom:14px;border-bottom:1px solid var(--border)}
@@ -194,7 +193,7 @@ table.sgrid td.nc{text-align:right;font-weight:500;background:var(--s2);color:va
     overflow: visible;
   }
 
-  #appScreen { display: block!important; }
+  #appScreen.vis { display:grid!important; }
 
   .main {
     padding: 4px;
@@ -764,6 +763,7 @@ async function doLogin(){
       err.classList.remove('vis');
       // Save session info locally as backup for refresh
       try{localStorage.setItem('sc_last_role',md.role||'worker');localStorage.setItem('sc_last_user',md.username||'');}catch(e){}
+      if(md.role==='superadmin') window._myAdminUsername=md.username;
       routeByRole(md);
     } else {
       err.textContent=d.error||'שם משתמש או סיסמה שגויים';
@@ -1609,7 +1609,7 @@ async function loadAdminUsers(){
             <div style="min-width:0">
               <div style="font-weight:600;font-size:13px">${u.username}</div>
               <div style="font-size:10px;color:var(--muted);display:flex;gap:8px;flex-wrap:wrap;margin-top:1px">
-                <span style="color:${u.isAdmin?'var(--blue)':'var(--muted)'}">${u.isAdmin?'👑 מנהל מערכת':'👔 מנהל משמרת'}</span>
+                <span style="color:${u.isAdmin?'var(--blue)':'var(--muted)'}">${u.username===window._myAdminUsername?'👑 Admin (מנהל מערכת)':u.isAdmin?'👔 מנהל משמרות':'👤 עובד'}</span>
                 ${u.company_name&&u.company_name!=='—'?`<span style="color:var(--teal)">🏢 ${u.company_name}</span>`:'<span style="color:var(--dim)">ללא חברה</span>'}
                 ${u.created?`<span style="color:var(--dim)">${(u.created||'').replace('T',' ').slice(0,16)}</span>`:''}
               </div>
@@ -2979,9 +2979,9 @@ async function submitAddManager(){
   const msg=document.getElementById('addMgrMsg');
   if(!un||!pw){msg.style.cssText='display:block;color:var(--red)';msg.textContent='נא למלא שם וסיסמה';return;}
   if(pw.length<4){msg.style.cssText='display:block;color:var(--red)';msg.textContent='סיסמה מינ׳ 4 תווים';return;}
-  const mgrRole=document.querySelector('input[name="mgrRole"]:checked')?.value||'manager';
+  const mgrRole=document.querySelector('input[name="addMgrRole"]:checked')?.value||'manager';
   const isSuperAdmin=mgrRole==='superadmin';
-  const payload={username:un,password:pw,is_admin:mgrRole!=='worker',is_superadmin:isSuperAdmin,company_id:cid||null};
+  const payload={username:un,password:pw,is_admin:true,is_superadmin:isSuperAdmin,company_id:cid||null};
   const d=await fetch('/api/register',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)}).then(r=>r.json());
   if(d.ok){msg.style.cssText='display:block;color:var(--teal)';msg.textContent='✓ מנהל נוצר';setTimeout(()=>{closeAddManagerModal();loadAdminDash();},1000);}
   else{msg.style.cssText='display:block;color:var(--red)';msg.textContent=d.error||'שגיאה';}
@@ -3570,10 +3570,21 @@ async function submitEditUser(){
     <div class="frow"><label class="flabel">חברה</label><select class="finput" id="addMgrCompSel" style="margin-top:4px"><option value="">— בחר —</option></select></div>
     <div class="frow"><label class="flabel">שם משתמש</label><input class="finput" id="addMgrUn" placeholder="שם משתמש" style="margin-top:4px"></div>
     <div class="frow"><label class="flabel">סיסמה</label><input class="finput" type="password" id="addMgrPw" placeholder="מינ׳ 4 תווים" style="margin-top:4px"></div>
+    <div class="frow" id="addMgrRoleWrap">
+      <label class="flabel">סוג משתמש</label>
+      <div style="display:flex;gap:12px;margin-top:6px;flex-wrap:wrap">
+        <label style="display:flex;align-items:center;gap:6px;font-size:13px;cursor:pointer;padding:6px 10px;border:1px solid var(--border);border-radius:7px">
+          <input type="radio" name="addMgrRole" value="manager" checked style="accent-color:var(--blue)"> 👔 מנהל משמרות
+        </label>
+        <label id="addMgrAdminOption" style="display:none;align-items:center;gap:6px;font-size:13px;cursor:pointer;padding:6px 10px;border:1px solid var(--border);border-radius:7px">
+          <input type="radio" name="addMgrRole" value="superadmin" style="accent-color:#7c3aed"> 👑 מנהל מערכת (Admin)
+        </label>
+      </div>
+    </div>
     <div id="addMgrMsg" style="display:none;font-size:12px;padding:7px 10px;border-radius:6px;margin-top:6px"></div>
     <div class="mactions">
       <button class="btn-cancel" onclick="closeAddManagerModal()">ביטול</button>
-      <button class="btn-save" onclick="submitAddManager()">צור מנהל</button>
+      <button class="btn-save" onclick="submitAddManager()">צור משתמש</button>
     </div>
   </div>
 </div>

@@ -403,9 +403,14 @@ class Handler(http.server.BaseHTTPRequestHandler):
                 username = row['username'] if row else ''
                 if row:
                     uname = row['username']
-                    is_superadmin = (uname == ADMIN_USERNAME)
-                    is_manager = bool(int(row.get('is_admin') or 0) == 1) and not is_superadmin
-                    role = 'superadmin' if is_superadmin else ('manager' if is_manager else 'worker')
+                    # Check role column first, fall back to is_admin
+                    stored_role = row.get('role') or ''
+                    if uname == ADMIN_USERNAME or stored_role == 'superadmin':
+                        role = 'superadmin'
+                    elif int(row.get('is_admin') or 0) == 1 or stored_role == 'manager':
+                        role = 'manager'
+                    else:
+                        role = 'worker'
                     is_admin_flag = role in ('superadmin','manager')
                     print(f'  /api/me: {uname} -> role={role}', flush=True)
                     return self.send_json(200, {'authed':True,'username':uname,'isAdmin':is_admin_flag,'role':role,'isSuperAdmin':is_superadmin})
