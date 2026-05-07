@@ -413,7 +413,7 @@ class Handler(http.server.BaseHTTPRequestHandler):
                         role = 'worker'
                     is_admin_flag = role in ('superadmin','manager')
                     print(f'  /api/me: {uname} -> role={role}', flush=True)
-                    return self.send_json(200, {'authed':True,'username':uname,'isAdmin':is_admin_flag,'role':role,'isSuperAdmin':is_superadmin})
+                    return self.send_json(200, {'authed':True,'username':uname,'isAdmin':is_admin_flag,'role':role,'isSuperAdmin':role=='superadmin'})
             return self.send_json(200, {'authed':False,'isAdmin':False,'role':'worker'})
 
         if path == '/api/data':
