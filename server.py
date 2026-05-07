@@ -422,8 +422,13 @@ class Handler(http.server.BaseHTTPRequestHandler):
                 row = fetchone(db, "SELECT username FROM users WHERE id=?", (user_id,))
                 if not row or row['username'] != ADMIN_USERNAME:
                     return self.send_json(403, {'error': 'אין הרשאה'})
-                companies = fetchall(db, "SELECT id, name, plan, active, created FROM companies ORDER BY created DESC")
-                return self.send_json(200, {'companies': companies})
+                raw = fetchall(db, "SELECT id, name, plan, active, created FROM companies ORDER BY created DESC")
+                # Add user count per company
+                companies_with_count = []
+                for c in raw:
+                    cnt = fetchone(db, "SELECT COUNT(*) as n FROM users WHERE company_id=?", (c['id'],))
+                    companies_with_count.append({**c, 'user_count': cnt['n'] if cnt else 0})
+                return self.send_json(200, {'companies': companies_with_count})
 
         # ── /api/users via GET (admin only) ──────────────
         if path == '/api/users':
@@ -772,8 +777,12 @@ class Handler(http.server.BaseHTTPRequestHandler):
                 row = fetchone(db, "SELECT username FROM users WHERE id=?", (user_id,))
                 if not row or row['username'] != ADMIN_USERNAME:
                     return self.send_json(403, {'error': 'אין הרשאה'})
-                companies = fetchall(db, "SELECT id, name, plan, active, created FROM companies ORDER BY created DESC")
-                return self.send_json(200, {'companies': companies})
+                raw = fetchall(db, "SELECT id, name, plan, active, created FROM companies ORDER BY created DESC")
+                companies_with_count = []
+                for c in raw:
+                    cnt = fetchone(db, "SELECT COUNT(*) as n FROM users WHERE company_id=?", (c['id'],))
+                    companies_with_count.append({**c, 'user_count': cnt['n'] if cnt else 0})
+                return self.send_json(200, {'companies': companies_with_count})
 
         if path == '/api/companies/create':
             if not user_id: return self.send_json(401, {'error': 'לא מחובר'})
