@@ -2884,8 +2884,8 @@ async function loadAdminCompanies(){
         <td style="padding:10px;text-align:center;color:var(--muted);font-size:11px">${(c.created||'').slice(0,10)}</td>
         <td style="padding:10px;text-align:center">
           <button onclick="openAddManagerModal(${c.id},'${c.name.replace(/'/g,"\'")}');" style="background:var(--s3);border:1px solid var(--border);border-radius:5px;padding:4px 10px;font-size:11px;cursor:pointer;font-family:inherit">+ מנהל</button>
-          <button onclick="editCompany(${c.id},'${c.name.replace(/'/g,\"\\'\")}')" style="background:var(--s3);border:1px solid var(--border);border-radius:5px;padding:4px 8px;font-size:11px;cursor:pointer;font-family:inherit" title="עריכה">✏️</button>
-          <button onclick="deleteCompany(${c.id},'${c.name.replace(/'/g,\"\\'\")}')" style="background:rgba(214,48,48,.08);border:1px solid rgba(214,48,48,.2);color:var(--red);border-radius:5px;padding:4px 8px;font-size:11px;cursor:pointer;font-family:inherit" title="מחק">🗑️</button>
+          <button onclick="editCompany(${c.id},this.dataset.n)" data-n="${c.name}" style="background:var(--s3);border:1px solid var(--border);border-radius:5px;padding:4px 8px;font-size:11px;cursor:pointer;font-family:inherit" title="עריכה">✏️</button>
+          <button onclick="deleteCompany(${c.id},this.dataset.n)" data-n="${c.name}" style="background:rgba(214,48,48,.08);border:1px solid rgba(214,48,48,.2);color:var(--red);border-radius:5px;padding:4px 8px;font-size:11px;cursor:pointer;font-family:inherit" title="מחק">🗑️</button>
         </td>
       </tr>`).join('')}
       </tbody></table>`;
