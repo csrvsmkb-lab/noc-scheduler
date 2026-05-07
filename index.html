@@ -2661,110 +2661,69 @@ function shareWorkerWhatsApp(workerName){
   if(!w) return;
   const weekStart = document.getElementById('weekStartDate')?.value||'';
   const weekDates = getWeekDates();
-  function fmtDate(iso){ if(!iso) return ''; const [y,m,d]=iso.split('-'); return d+'-'+m+'-'+y; }
-  let msg = '📋 *סידור עבודה — '+workerName+'*
-';
-  if(weekStart) msg += 'שבוע: '+fmtDate(weekStart)+'
-';
-  msg += '━━━━━━━━━━━━━━
-';
-  for(let di=0; di<DAYS.length; di++){
-    const day=DAYS[di]; const date=weekDates[di]||'';
-    const sh=getShiftNames().find(s=>(lastSchedule[day]?.[s]||[]).map(n=>n.replace(/^📚/,'')).includes(workerName));
-    const isDayAbsent=(w.absenceDays||[]).includes(day);
+  function fmtDate(iso){ if(!iso) return ''; const p=iso.split('-'); return p[2]+'-'+p[1]+'-'+p[0]; }
+  var lines=[];
+  lines.push('📋 *סידור עבודה — '+workerName+'*');
+  if(weekStart) lines.push('שבוע: '+fmtDate(weekStart));
+  lines.push('━━━━━━━━━━━━━━');
+  for(var di=0; di<DAYS.length; di++){
+    var day=DAYS[di]; var date=weekDates[di]||'';
+    var sh=getShiftNames().find(function(s){ return (lastSchedule[day]?.[s]||[]).map(function(n){return n.replace(/^📚/,'');}).includes(workerName); });
+    var isDayAbsent=(w.absenceDays||[]).includes(day);
     if(sh){
-      const shiftObj=shifts.find(s=>s.name===sh);
-      const times=shiftObj?shiftObj.start+'–'+shiftObj.end:'';
-      msg += '📅 *'+day+'* '+fmtDate(date)+': '+sh+' '+times+'
-';
+      var shiftObj=shifts.find(function(s){return s.name===sh;});
+      var times=shiftObj?shiftObj.start+'\u2013'+shiftObj.end:'';
+      lines.push('📅 *'+day+'* '+fmtDate(date)+': '+sh+' '+times);
     } else if(isDayAbsent){
-      msg += '📅 *'+day+'* '+fmtDate(date)+': '+(w.absenceType==='vacation'?'🏖️ חופש':'🤒 מחלה')+'
-';
+      lines.push('📅 *'+day+'* '+fmtDate(date)+': '+(w.absenceType==='vacation'?'🏖️ חופש':'🤒 מחלה'));
     } else {
-      msg += '📅 *'+day+'* '+fmtDate(date)+': חופש
-';
+      lines.push('📅 *'+day+'* '+fmtDate(date)+': חופש');
     }
   }
-  const ws=(lastStats||{})[workerName]||{};
-  msg += '━━━━━━━━━━━━━━
-';
-  msg += 'סה״כ: '+(ws.total_shifts||0)+' משמרות';
-  if(ws.nights) msg += ' | לילות: '+ws.nights;
-  msg += '
-
-נשלח מ-ShiftCraft AI 🤖';
+  var ws=(lastStats||{})[workerName]||{};
+  lines.push('━━━━━━━━━━━━━━');
+  var summary='סה״כ: '+(ws.total_shifts||0)+' משמרות';
+  if(ws.nights) summary+=' | לילות: '+ws.nights;
+  lines.push(summary);
+  lines.push('');
+  lines.push('נשלח מ-ShiftCraft AI 🤖');
+  var msg=lines.join('\n');
   window.open('https://wa.me/?text='+encodeURIComponent(msg), '_blank');
-}
-function shareAllWhatsApp(){
-  if(!lastSchedule){ alert('יש לבנות לוח תחילה'); return; }
-  const weekStart = document.getElementById('weekStartDate')?.value||'';
-  const weekDates = getWeekDates();
-
-  let msg = `📋 *סידור עבודה שבועי*
-`;
-  if(weekStart) msg += `שבוע: ${weekStart}
-`;
-  msg += `━━━━━━━━━━━━━━
-
-`;
-
-  for(const w of workers.filter(x=>x.status!=='vacation'&&x.status!=='sick')){
-    const myShifts = [];
-    for(let di=0; di<DAYS.length; di++){
-      const day=DAYS[di];
-      const sh=getShiftNames().find(s=>(lastSchedule[day]?.[s]||[]).includes(w.name));
-      if(sh){
-        const shiftObj=shifts.find(s=>s.name===sh);
-        const times=shiftObj?`(${shiftObj.start}–${shiftObj.end})`:'';
-        myShifts.push(`${day.slice(0,2)} ${sh.slice(0,2)} ${times}`);
-      }
-    }
-    if(myShifts.length){
-      msg += `👤 *${w.name}*: ${myShifts.join(' | ')}
-`;
-    }
-  }
-
-  msg += `
-נשלח מ-ShiftCraft AI 🤖`;
-  const encoded = encodeURIComponent(msg);
-  window.open(`https://wa.me/?text=${encoded}`, '_blank');
 }
 
 function shareAllWhatsApp(){
   if(!lastSchedule){ alert('יש לבנות לוח תחילה'); return; }
   const weekStart = document.getElementById('weekStartDate')?.value||'';
   const weekDates = getWeekDates();
-  function fmtDate(iso){ if(!iso) return ''; const [y,m,d]=iso.split('-'); return d+'-'+m+'-'+y; }
-  let msg = '📋 *סידור עבודה שבועי*
-';
-  if(weekStart) msg += 'שבוע: '+fmtDate(weekStart)+'
-';
-  msg += '━━━━━━━━━━━━━━
-
-';
-  for(const w of workers.filter(x=>x.status!=='vacation'&&x.status!=='sick')){
-    const myShifts=[];
-    for(let di=0; di<DAYS.length; di++){
-      const day=DAYS[di]; const date=weekDates[di]||'';
-      const sh=getShiftNames().find(s=>(lastSchedule[day]?.[s]||[]).map(n=>n.replace(/^📚/,'')).includes(w.name));
+  function fmtDate(iso){ if(!iso) return ''; const p=iso.split('-'); return p[2]+'-'+p[1]+'-'+p[0]; }
+  var allLines=[];
+  allLines.push('📋 *סידור עבודה שבועי*');
+  if(weekStart) allLines.push('שבוע: '+fmtDate(weekStart));
+  allLines.push('━━━━━━━━━━━━━━');
+  allLines.push('');
+  var activeWorkers=workers.filter(function(x){return x.status!=='vacation'&&x.status!=='sick';});
+  for(var wi=0;wi<activeWorkers.length;wi++){
+    var w=activeWorkers[wi];
+    var wLines=['👤 *'+w.name+'*'];
+    for(var di=0;di<DAYS.length;di++){
+      var day=DAYS[di]; var date=weekDates[di]||'';
+      var sh=getShiftNames().find(function(s){ return (lastSchedule[day]?.[s]||[]).map(function(n){return n.replace(/^📚/,'');}).includes(w.name); });
       if(sh){
-        const shiftObj=shifts.find(s=>s.name===sh);
-        const times=shiftObj?'('+shiftObj.start+'–'+shiftObj.end+')':'';
-        myShifts.push('📅 '+day+' '+fmtDate(date)+': '+sh+' '+times);
+        var shiftObj=shifts.find(function(s){return s.name===sh;});
+        var times=shiftObj?'('+shiftObj.start+'\u2013'+shiftObj.end+')':'';
+        wLines.push('📅 '+day+' '+fmtDate(date)+': '+sh+' '+times);
       }
     }
-    if(myShifts.length){
-      msg += '👤 *'+w.name+'*
-'+myShifts.join('
-')+'
-
-';
+    if(wLines.length>1){
+      allLines=allLines.concat(wLines);
+      allLines.push('');
     }
   }
-  msg += 'נשלח מ-ShiftCraft AI 🤖';
+  allLines.push('נשלח מ-ShiftCraft AI 🤖');
+  var msg=allLines.join('\n');
   window.open('https://wa.me/?text='+encodeURIComponent(msg), '_blank');
 }
+
 
 // ═══════════════════════════════════════════════════════
 //  WORKER PORTAL JS
