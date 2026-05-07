@@ -876,6 +876,27 @@ class Handler(http.server.BaseHTTPRequestHandler):
                 execute(db, "DELETE FROM companies WHERE id=?", (cid,))
             return self.send_json(200, {'ok': True})
 
+        if path == '/api/users/update':
+            if not user_id: return self.send_json(401,{'error':'לא מחובר'})
+            with get_db() as db:
+                req_row = fetchone(db,"SELECT username,is_admin FROM users WHERE id=?",(user_id,))
+                if not req_row or (req_row['username']!=ADMIN_USERNAME and int(req_row.get('is_admin') or 0)!=1):
+                    return self.send_json(403,{'error':'אין הרשאה'})
+                target_id = payload.get('user_id')
+                target = fetchone(db,"SELECT username FROM users WHERE id=?",(target_id,))
+                if not target: return self.send_json(404,{'error':'לא נמצא'})
+                # Update username
+                new_uname = payload.get('username','').strip()
+                new_is_admin = 1 if payload.get('is_admin') else 0
+                new_cid = payload.get('company_id')
+                if new_uname:
+                    execute(db,"UPDATE users SET is_admin=?,company_id=? WHERE id=?",(new_is_admin,new_cid,target_id))
+                # Update password if provided
+                pw = payload.get('password','')
+                if pw and len(pw)>=4:
+                    execute(db,"UPDATE users SET password=? WHERE id=?",(hash_password(pw),target_id))
+            return self.send_json(200,{'ok':True})
+
         self.send_json(404, {'error': 'Not found'})
 
 # ─────────────────────────────────────────────────────────

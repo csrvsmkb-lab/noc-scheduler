@@ -399,6 +399,7 @@ td.locked-cell::after{content:'🔒';position:absolute;top:1px;right:1px;font-si
           📬 בקשות עובדים<span id="reqBadge" style="display:none;position:absolute;top:-6px;right:-6px;background:var(--red);color:#fff;border-radius:50%;width:18px;height:18px;font-size:10px;font-weight:700;align-items:center;justify-content:center;line-height:18px">0</span>
         </button>
         <button id="adminBtn" onclick="openAdminPanel()" style="display:none;background:rgba(26,110,245,.1);border:1px solid var(--border2);color:var(--blue);border-radius:8px;padding:9px 16px;font-size:13px;cursor:pointer;font-family:inherit;align-items:center;gap:6px">👑 ניהול משתמשים</button>
+        <button onclick="safeRefresh()" style="background:var(--s3);border:1px solid var(--border2);border-radius:8px;padding:9px 12px;font-size:13px;cursor:pointer;font-family:inherit" title="רענן">🔄</button>
         <button onclick="openCustomize()" style="background:rgba(13,158,114,.1);border:1px solid rgba(13,158,114,.3);color:var(--teal);border-radius:8px;padding:9px 14px;font-size:13px;cursor:pointer;font-family:inherit" title="התאמה אישית">⚙️</button>
         <button class="gen-btn" id="genBtn" onclick="buildSchedule()">
         <div class="spin" id="spin"></div>
@@ -761,6 +762,8 @@ async function doLogin(){
       const md=await fetch('/api/me').then(r=>r.json());
       currentIsAdmin=md.isAdmin||false;
       err.classList.remove('vis');
+      // Save session info locally as backup for refresh
+      try{localStorage.setItem('sc_last_role',md.role||'worker');localStorage.setItem('sc_last_user',md.username||'');}catch(e){}
       routeByRole(md);
     } else {
       err.textContent=d.error||'שם משתמש או סיסמה שגויים';
@@ -799,6 +802,7 @@ async function doLogout(){
   const ads=document.getElementById('adminDashScreen');if(ads)ads.style.display='none';
   document.getElementById('loginScreen').style.display='flex';
   document.getElementById('loginPass').value='';
+  try{localStorage.removeItem('sc_last_role');localStorage.removeItem('sc_last_user');}catch(e){}
 }
 function showApp(username){
   window._myUsername = username;
@@ -1598,22 +1602,26 @@ async function loadAdminUsers(){
     const el = document.getElementById('adminUsersList');
     if(!d.users.length){ el.innerHTML='<div style="text-align:center;color:var(--muted);padding:12px;font-size:13px">אין משתמשים נוספים</div>'; return; }
     el.innerHTML = d.users.map(u=>`
-      <div style="display:flex;align-items:center;justify-content:space-between;padding:9px 12px;background:var(--s3);border-radius:7px;margin-bottom:6px;border:1px solid var(--border)">
-        <div style="display:flex;align-items:center;gap:9px">
-          <div style="width:30px;height:30px;border-radius:50%;background:${u.isAdmin?'var(--blue)':'var(--muted)'};display:flex;align-items:center;justify-content:center;color:#fff;font-size:12px;font-weight:700;flex-shrink:0">${u.username[0].toUpperCase()}</div>
-          <div>
-            <div style="font-weight:500;font-size:13px">${u.username}</div>
-            <div style="font-size:10px;color:${u.isAdmin?'var(--blue)':'var(--muted)'}">${u.isAdmin?'👑 מנהל מערכת':'מנהל משמרת'}</div>
+      <div style="background:var(--s3);border-radius:8px;margin-bottom:6px;border:1px solid var(--border);overflow:hidden">
+        <div style="display:flex;align-items:center;justify-content:space-between;padding:9px 12px">
+          <div style="display:flex;align-items:center;gap:9px;flex:1;min-width:0">
+            <div style="width:32px;height:32px;border-radius:50%;background:${u.isAdmin?'var(--blue)':'var(--muted)'};display:flex;align-items:center;justify-content:center;color:#fff;font-size:13px;font-weight:700;flex-shrink:0">${(u.username||'?')[0].toUpperCase()}</div>
+            <div style="min-width:0">
+              <div style="font-weight:600;font-size:13px">${u.username}</div>
+              <div style="font-size:10px;color:var(--muted);display:flex;gap:8px;flex-wrap:wrap;margin-top:1px">
+                <span style="color:${u.isAdmin?'var(--blue)':'var(--muted)'}">${u.isAdmin?'👑 מנהל מערכת':'👔 מנהל משמרת'}</span>
+                ${u.company_name&&u.company_name!=='—'?`<span style="color:var(--teal)">🏢 ${u.company_name}</span>`:'<span style="color:var(--dim)">ללא חברה</span>'}
+                ${u.created?`<span style="color:var(--dim)">${(u.created||'').replace('T',' ').slice(0,16)}</span>`:''}
+              </div>
+            </div>
           </div>
-        </div>
-        <div style="display:flex;gap:5px;align-items:center;flex-wrap:wrap">
-          ${u.username!=='admin'?`
-            <label style="display:flex;align-items:center;gap:3px;font-size:11px;color:var(--muted);cursor:pointer;padding:3px 7px;border:1px solid var(--border);border-radius:5px">
-              <input type="checkbox" ${u.isAdmin?'checked':''} onchange="toggleAdmin(${u.id},this.checked)" style="accent-color:var(--blue)"> אדמין
-            </label>
-            <button onclick="showChangePw(${u.id},'${u.username}')" style="background:none;border:1px solid var(--border2);border-radius:5px;color:var(--blue);cursor:pointer;font-size:11px;padding:3px 8px;font-family:inherit">🔑</button>
-            <button onclick="deleteUser(${u.id},'${u.username}')" style="background:none;border:1px solid rgba(214,48,48,.3);border-radius:5px;color:var(--red);cursor:pointer;font-size:11px;padding:3px 8px;font-family:inherit">🗑️</button>
-          `:'<span style="font-size:10px;background:rgba(26,110,245,.1);color:var(--blue);padding:2px 9px;border-radius:10px;border:1px solid rgba(26,110,245,.2)">ראשי</span>'}
+          <div style="display:flex;gap:4px;align-items:center;flex-shrink:0">
+            ${u.username!=='admin'&&u.username!=='${ADMIN_USERNAME}'?`
+              <button onclick="openEditUser(${u.id},'${u.username}',${u.isAdmin?1:0},'${(u.company_name||'').replace(/'/g,"\'")}')" style="background:var(--s2);border:1px solid var(--border2);border-radius:5px;color:var(--blue);cursor:pointer;font-size:11px;padding:4px 9px;font-family:inherit" title="עריכה">✏️ ערוך</button>
+              <button onclick="showChangePw(${u.id},'${u.username}')" style="background:none;border:1px solid var(--border2);border-radius:5px;color:var(--muted);cursor:pointer;font-size:11px;padding:4px 8px;font-family:inherit" title="שנה סיסמה">🔑</button>
+              <button onclick="deleteUser(${u.id},'${u.username}')" style="background:none;border:1px solid rgba(214,48,48,.3);border-radius:5px;color:var(--red);cursor:pointer;font-size:11px;padding:4px 8px;font-family:inherit" title="מחק">🗑️</button>
+            `:'<span style="font-size:10px;background:rgba(26,110,245,.1);color:var(--blue);padding:2px 9px;border-radius:10px;border:1px solid rgba(26,110,245,.2)">👑 ראשי</span>'}
+          </div>
         </div>
       </div>`).join('');
   } catch(e){ console.error(e); }
@@ -1761,9 +1769,13 @@ initWeekDate();
     const d = await r.json();
     if(d.authed){
       currentIsAdmin=d.isAdmin||false;
+      try{localStorage.setItem('sc_last_role',d.role||'worker');localStorage.setItem('sc_last_user',d.username||'');}catch(e){}
       routeByRole(d);
     }
-  } catch(e){}
+  } catch(e){
+    // Network error - keep login screen
+    console.warn('Boot /api/me failed',e);
+  }
 })();
 
 // ═══════════════════════════════════════════════════════
@@ -2766,6 +2778,7 @@ function buildAdminDash(username){
       <div style="display:flex;align-items:center;gap:10px">
         <span style="font-size:12px;color:var(--muted)">${username}</span>
         <button onclick="toggleDarkMode()" id="adminThemeBtn" style="background:var(--s3);border:1px solid var(--border);border-radius:6px;padding:5px 10px;cursor:pointer;font-size:13px">☀️</button>
+        <button onclick="safeRefresh()" style="background:var(--s3);border:1px solid var(--border);border-radius:6px;padding:5px 10px;cursor:pointer;font-size:13px" title="רענן">🔄</button>
         <button onclick="doLogout()" style="background:none;border:1px solid var(--border);border-radius:6px;padding:5px 12px;font-size:12px;cursor:pointer;color:var(--muted);font-family:inherit">יציאה</button>
       </div>
     </div>
@@ -2978,29 +2991,35 @@ async function submitAddManager(){
 //  SAFE REFRESH — keeps session
 // ══════════════════════════════════════════════════════
 async function safeRefresh(){
-  const btn = event?.target;
-  if(btn){btn.style.opacity='.5';btn.style.pointerEvents='none';}
+  const btn = event?.currentTarget||event?.target;
+  if(btn&&btn.tagName==='BUTTON'){btn.style.opacity='.5';btn.disabled=true;}
   try{
     const d = await fetch('/api/me').then(r=>r.json());
     if(d.authed){
       currentIsAdmin=d.isAdmin||false;
-      // Don't re-route, just refresh data in current view
       const role=d.role||'worker';
       if(role==='superadmin'){
-        loadAdminDash && loadAdminDash();
+        if(typeof loadAdminDash==='function') loadAdminDash();
       } else if(role==='manager'){
-        loadState && loadState();
-        loadNotes && loadNotes();
-        checkUnreadRequests && checkUnreadRequests();
+        if(typeof loadState==='function') await loadState();
+        if(typeof loadNotes==='function') loadNotes();
+        if(typeof checkUnreadRequests==='function') checkUnreadRequests();
+      } else {
+        if(typeof wpLoadSchedule==='function') wpLoadSchedule();
       }
       showToast('✓ רוענן');
     } else {
-      // Only logout if truly unauthenticated
-      doLogout();
+      showToast('פג תוקף החיבור — מתחבר מחדש...');
+      setTimeout(()=>{
+        document.getElementById('loginScreen').style.display='flex';
+        document.getElementById('appScreen').classList.remove('vis');
+        const ads=document.getElementById('adminDashScreen');if(ads)ads.style.display='none';
+        const ws=document.getElementById('workerScreen');if(ws)ws.classList.remove('vis');
+      },1500);
     }
-  } catch(e){ showToast('שגיאת תקשורת — בדוק חיבור'); }
+  } catch(e){ showToast('שגיאת רשת — נסה שוב'); }
   finally{
-    if(btn){setTimeout(()=>{btn.style.opacity='1';btn.style.pointerEvents='auto';},500);}
+    if(btn&&btn.tagName==='BUTTON'){setTimeout(()=>{btn.style.opacity='1';btn.disabled=false;},600);}
   }
 }
 
@@ -3155,6 +3174,51 @@ function renderCompanyChart(breakdown){
     <div style="display:flex;gap:16px;margin-top:8px;font-size:10px;color:var(--muted)">
       <span>🟦 עובדים</span><span style="color:#7c3aed">🟪 מנהלים</span>
     </div>`;
+}
+
+
+// ════ EDIT USER ════════════════════════════════
+function openEditUser(id, username, isAdmin, companyName){
+  document.getElementById('editUserId').value=id;
+  document.getElementById('editUserName').textContent=username;
+  document.getElementById('editUserUsername').value=username;
+  document.getElementById('editUserPw').value='';
+  document.getElementById('editUserMsg').style.display='none';
+  // Set role
+  const roleVal=isAdmin?'admin':'manager';
+  document.querySelectorAll('input[name="editUserRole"]').forEach(r=>r.checked=(r.value===roleVal));
+  // Populate company dropdown
+  const sel=document.getElementById('editUserCompany');
+  sel.innerHTML='<option value="">— ללא חברה —</option>'+(_adCompanies||[]).map(c=>`<option value="${c.id}">${c.name}</option>`).join('');
+  // Try to select current company
+  if(companyName&&companyName!=='—'){
+    const opt=[...sel.options].find(o=>o.text===companyName);
+    if(opt) sel.value=opt.value;
+  }
+  document.getElementById('editUserOverlay').classList.add('open');
+}
+function closeEditUser(){document.getElementById('editUserOverlay').classList.remove('open');}
+
+async function submitEditUser(){
+  const id=parseInt(document.getElementById('editUserId').value);
+  const username=document.getElementById('editUserUsername').value.trim();
+  const pw=document.getElementById('editUserPw').value;
+  const role=document.querySelector('input[name="editUserRole"]:checked')?.value||'manager';
+  const company_id=parseInt(document.getElementById('editUserCompany').value)||null;
+  const msg=document.getElementById('editUserMsg');
+  if(!username){msg.style.cssText='display:block;color:var(--red)';msg.textContent='שם משתמש נדרש';return;}
+  const payload={user_id:id,username,is_admin:role==='admin',company_id};
+  if(pw.length>=4) payload.password=pw;
+  const d=await fetch('/api/users/update',{method:'POST',headers:{'Content-Type':'application/json'},
+    body:JSON.stringify(payload)}).then(r=>r.json());
+  if(d.ok){
+    msg.style.cssText='display:block;color:var(--teal);background:rgba(13,158,114,.08)';
+    msg.textContent='✓ עודכן בהצלחה';
+    setTimeout(()=>{closeEditUser();loadAdminUsers();loadAdminStats();},1200);
+  } else {
+    msg.style.cssText='display:block;color:var(--red)';
+    msg.textContent=d.error||'שגיאה';
+  }
 }
 
 </script>
@@ -3525,6 +3589,45 @@ function renderCompanyChart(breakdown){
     <div class="mactions">
       <button class="btn-cancel" onclick="closeEditCompany()">ביטול</button>
       <button class="btn-save" onclick="submitEditCompany()">שמור שינויים</button>
+    </div>
+  </div>
+</div>
+
+
+<!-- EDIT USER MODAL -->
+<div class="overlay" id="editUserOverlay">
+  <div class="modal" style="width:420px">
+    <div class="modal-title">✏️ עריכת משתמש — <span id="editUserName"></span></div>
+    <input type="hidden" id="editUserId">
+    <div class="frow">
+      <label class="flabel">שם משתמש</label>
+      <input class="finput" id="editUserUsername" placeholder="שם משתמש" style="margin-top:4px">
+    </div>
+    <div class="frow">
+      <label class="flabel">הרשאות</label>
+      <div style="display:flex;gap:12px;margin-top:6px">
+        <label style="display:flex;align-items:center;gap:5px;font-size:13px;cursor:pointer">
+          <input type="radio" name="editUserRole" value="manager" style="accent-color:var(--blue)"> 👔 מנהל משמרות
+        </label>
+        <label style="display:flex;align-items:center;gap:5px;font-size:13px;cursor:pointer">
+          <input type="radio" name="editUserRole" value="admin" style="accent-color:#7c3aed"> 👑 מנהל מערכת
+        </label>
+      </div>
+    </div>
+    <div class="frow">
+      <label class="flabel">שינוי סיסמה (השאר ריק לשמור)</label>
+      <input class="finput" type="password" id="editUserPw" placeholder="סיסמה חדשה (אופציונלי)" style="margin-top:4px">
+    </div>
+    <div class="frow">
+      <label class="flabel">חברה משויכת</label>
+      <select class="finput" id="editUserCompany" style="margin-top:4px">
+        <option value="">— ללא חברה —</option>
+      </select>
+    </div>
+    <div id="editUserMsg" style="display:none;font-size:12px;padding:7px 10px;border-radius:6px;margin-top:6px"></div>
+    <div class="mactions">
+      <button class="btn-cancel" onclick="closeEditUser()">ביטול</button>
+      <button class="btn-save" onclick="submitEditUser()">שמור שינויים</button>
     </div>
   </div>
 </div>
