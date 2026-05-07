@@ -2775,26 +2775,30 @@ function buildAdminDash(username){
         <div style="font-size:13px;color:var(--muted)">ניהול חברות, מחלקות ומנהלים</div>
       </div>
       <!-- Stats -->
-      <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:14px;margin-bottom:28px">
-        <div style="background:var(--s1);border:1px solid var(--border);border-radius:10px;padding:18px">
-          <div style="font-size:22px;margin-bottom:6px">🏢</div>
-          <div id="adStatC" style="font-size:30px;font-weight:700;font-family:monospace;color:var(--blue)">—</div>
-          <div style="font-size:11px;color:var(--muted)">חברות פעילות</div>
+      <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:12px;margin-bottom:20px">
+        <div style="background:var(--s1);border:1px solid var(--border);border-radius:10px;padding:16px;display:flex;flex-direction:column;gap:4px">
+          <div style="font-size:11px;color:var(--muted);font-weight:500">🏢 חברות פעילות</div>
+          <div id="adStatC" style="font-size:34px;font-weight:700;font-family:monospace;color:var(--blue)">—</div>
+          <div id="adStatCTotal" style="font-size:10px;color:var(--dim)"></div>
         </div>
-        <div style="background:var(--s1);border:1px solid var(--border);border-radius:10px;padding:18px">
-          <div style="font-size:22px;margin-bottom:6px">👔</div>
-          <div id="adStatM" style="font-size:30px;font-weight:700;font-family:monospace;color:#7c3aed">—</div>
-          <div style="font-size:11px;color:var(--muted)">מנהלי משמרות</div>
+        <div style="background:var(--s1);border:1px solid var(--border);border-radius:10px;padding:16px;display:flex;flex-direction:column;gap:4px">
+          <div style="font-size:11px;color:var(--muted);font-weight:500">👔 מנהלי משמרות</div>
+          <div id="adStatM" style="font-size:34px;font-weight:700;font-family:monospace;color:#7c3aed">—</div>
         </div>
-        <div style="background:var(--s1);border:1px solid var(--border);border-radius:10px;padding:18px">
-          <div style="font-size:22px;margin-bottom:6px">👤</div>
-          <div id="adStatW" style="font-size:30px;font-weight:700;font-family:monospace;color:var(--teal)">—</div>
-          <div style="font-size:11px;color:var(--muted)">עובדים</div>
+        <div style="background:var(--s1);border:1px solid var(--border);border-radius:10px;padding:16px;display:flex;flex-direction:column;gap:4px">
+          <div style="font-size:11px;color:var(--muted);font-weight:500">👤 עובדים רשומים</div>
+          <div id="adStatW" style="font-size:34px;font-weight:700;font-family:monospace;color:var(--teal)">—</div>
         </div>
-        <div style="background:var(--s1);border:1px solid var(--border);border-radius:10px;padding:18px">
-          <div style="font-size:22px;margin-bottom:6px">📋</div>
-          <div id="adStatT" style="font-size:30px;font-weight:700;font-family:monospace;color:var(--amber)">—</div>
-          <div style="font-size:11px;color:var(--muted)">סה״כ משתמשים</div>
+        <div style="background:var(--s1);border:1px solid var(--border);border-radius:10px;padding:16px;display:flex;flex-direction:column;gap:4px">
+          <div style="font-size:11px;color:var(--muted);font-weight:500">📋 סה״כ משתמשים</div>
+          <div id="adStatT" style="font-size:34px;font-weight:700;font-family:monospace;color:var(--amber)">—</div>
+        </div>
+      </div>
+      <!-- Chart -->
+      <div style="background:var(--s1);border:1px solid var(--border);border-radius:10px;padding:16px;margin-bottom:20px">
+        <div style="font-size:13px;font-weight:600;margin-bottom:14px">📊 פילוח לפי חברה</div>
+        <div id="adChartArea" style="display:flex;flex-direction:column;gap:6px;min-height:40px">
+          <div style="text-align:center;color:var(--muted);font-size:12px">טוען...</div>
         </div>
       </div>
       <!-- Tabs -->
@@ -2858,6 +2862,8 @@ async function loadAdminDash(){
     document.getElementById('adStatM').textContent=d.totalManagers||0;
     document.getElementById('adStatW').textContent=d.totalWorkers||0;
     document.getElementById('adStatT').textContent=d.totalUsers||0;
+    // Render company breakdown chart
+    renderCompanyChart(d.companyBreakdown||[]);
   }catch(e){}
   loadAdminCompanies();
 }
@@ -2909,7 +2915,7 @@ async function loadAdminUsers(){
       ${users.map(u=>`<tr style="border-bottom:1px solid var(--border)">
         <td style="padding:10px 12px;font-weight:500">${u.username}</td>
         <td style="padding:10px;text-align:center"><span style="padding:2px 10px;border-radius:20px;font-size:11px;${u.isAdmin?'background:rgba(124,58,237,.1);color:#7c3aed':'background:rgba(90,100,120,.1);color:var(--muted)'}">${u.isAdmin?'👔 מנהל':'👤 עובד'}</span></td>
-        <td style="padding:10px;text-align:center;color:var(--muted);font-size:12px">${cMap[u.company_id]||'—'}</td>
+        <td style="padding:10px;text-align:center;color:var(--muted);font-size:12px">${u.company_name||cMap[u.company_id]||'—'}</td>
         <td style="padding:10px;text-align:center">
           <button onclick="deleteAdminUser(${u.id},'${u.username.replace(/'/g,"\'")}');" style="background:rgba(214,48,48,.08);border:1px solid rgba(214,48,48,.2);color:var(--red);border-radius:5px;padding:4px 10px;font-size:11px;cursor:pointer;font-family:inherit">מחק</button>
         </td>
@@ -2960,7 +2966,9 @@ async function submitAddManager(){
   const msg=document.getElementById('addMgrMsg');
   if(!un||!pw){msg.style.cssText='display:block;color:var(--red)';msg.textContent='נא למלא שם וסיסמה';return;}
   if(pw.length<4){msg.style.cssText='display:block;color:var(--red)';msg.textContent='סיסמה מינ׳ 4 תווים';return;}
-  const d=await fetch('/api/register',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({username:un,password:pw,is_admin:true,company_id:cid})}).then(r=>r.json());
+  const mgrRole=document.querySelector('input[name="mgrRole"]:checked')?.value||'manager';
+  const isSuperAdmin=mgrRole==='superadmin';
+  const d=await fetch('/api/register',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({username:un,password:pw,is_admin:true,is_superadmin:isSuperAdmin,company_id:cid})}).then(r=>r.json());
   if(d.ok){msg.style.cssText='display:block;color:var(--teal)';msg.textContent='✓ מנהל נוצר';setTimeout(()=>{closeAddManagerModal();loadAdminDash();},1000);}
   else{msg.style.cssText='display:block;color:var(--red)';msg.textContent=d.error||'שגיאה';}
 }
@@ -2970,16 +2978,30 @@ async function submitAddManager(){
 //  SAFE REFRESH — keeps session
 // ══════════════════════════════════════════════════════
 async function safeRefresh(){
+  const btn = event?.target;
+  if(btn){btn.style.opacity='.5';btn.style.pointerEvents='none';}
   try{
     const d = await fetch('/api/me').then(r=>r.json());
     if(d.authed){
       currentIsAdmin=d.isAdmin||false;
-      routeByRole(d);
+      // Don't re-route, just refresh data in current view
+      const role=d.role||'worker';
+      if(role==='superadmin'){
+        loadAdminDash && loadAdminDash();
+      } else if(role==='manager'){
+        loadState && loadState();
+        loadNotes && loadNotes();
+        checkUnreadRequests && checkUnreadRequests();
+      }
       showToast('✓ רוענן');
     } else {
+      // Only logout if truly unauthenticated
       doLogout();
     }
-  } catch(e){ showToast('שגיאת תקשורת'); }
+  } catch(e){ showToast('שגיאת תקשורת — בדוק חיבור'); }
+  finally{
+    if(btn){setTimeout(()=>{btn.style.opacity='1';btn.style.pointerEvents='auto';},500);}
+  }
 }
 
 // ══════════════════════════════════════════════════════
@@ -3099,6 +3121,40 @@ async function deleteCompany(id, name){
     body:JSON.stringify({company_id:id})}).then(r=>r.json());
   if(d.ok){showToast('✓ חברה נמחקה');loadAdminCompanies();loadAdminStats();}
   else alert(d.error||'שגיאה');
+}
+
+
+// ══════════════════════════════════════════
+//  ADMIN DASHBOARD CHARTS
+// ══════════════════════════════════════════
+function renderCompanyChart(breakdown){
+  const el = document.getElementById('adChartArea');
+  if(!el) return;
+  if(!breakdown||!breakdown.length){
+    el.innerHTML='<div style="text-align:center;color:var(--muted);font-size:12px;padding:12px">אין נתונים</div>';
+    return;
+  }
+  const maxUsers = Math.max(...breakdown.map(c=>c.managers+c.workers), 1);
+  el.innerHTML = breakdown.map(c=>{
+    const total = c.managers + c.workers;
+    const mgrPct = total>0 ? Math.round(c.managers/total*100) : 0;
+    const wrkPct = 100-mgrPct;
+    const barW = Math.max(4, Math.round(total/maxUsers*100));
+    const planColor = c.plan==='pro'?'var(--blue)':c.plan==='enterprise'?'#7c3aed':'var(--dim)';
+    return `<div style="display:grid;grid-template-columns:140px 1fr 80px;align-items:center;gap:10px;padding:4px 0;border-bottom:1px solid var(--border)">
+      <div style="font-size:12px;font-weight:500;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${c.name}</div>
+      <div style="background:var(--s3);border-radius:4px;height:18px;overflow:hidden;position:relative">
+        <div style="position:absolute;right:0;top:0;height:100%;width:${barW}%;background:var(--blue);opacity:.7;border-radius:4px;transition:width .4s"></div>
+        <div style="position:absolute;right:0;top:0;height:100%;width:${Math.round(c.managers/maxUsers*100)}%;background:#7c3aed;opacity:.8;border-radius:4px;transition:width .4s"></div>
+      </div>
+      <div style="font-size:11px;color:var(--muted);text-align:left">
+        <span style="color:#7c3aed">${c.managers} מנהלים</span> / <span style="color:var(--teal)">${c.workers} עובדים</span>
+      </div>
+    </div>`;
+  }).join('') + `
+    <div style="display:flex;gap:16px;margin-top:8px;font-size:10px;color:var(--muted)">
+      <span>🟦 עובדים</span><span style="color:#7c3aed">🟪 מנהלים</span>
+    </div>`;
 }
 
 </script>

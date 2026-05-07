@@ -441,10 +441,13 @@ class Handler(http.server.BaseHTTPRequestHandler):
                 is_admin_check = row and (row['username'] == ADMIN_USERNAME or int(row.get('is_admin') or 0) == 1)
                 if not is_admin_check:
                     return self.send_json(403, {'error': 'אין הרשאה'})
-                users = fetchall(db, "SELECT id, username, is_admin, created FROM users ORDER BY created")
+                sql = "SELECT u.id, u.username, u.is_admin, u.company_id, u.created, c.name as company_name FROM users u LEFT JOIN companies c ON c.id=u.company_id ORDER BY u.created"
+                users = fetchall(db, sql)
                 return self.send_json(200, {'users': [
                     {'id': u['id'], 'username': u['username'],
                      'isAdmin': bool(int(u.get('is_admin') or 0) == 1 or u['username'] == ADMIN_USERNAME),
+                     'company_id': u.get('company_id'),
+                     'company_name': u.get('company_name') or '—',
                      'created': str(u['created']) if u['created'] else ''}
                     for u in users
                 ]})
@@ -489,15 +492,15 @@ class Handler(http.server.BaseHTTPRequestHandler):
         if path == '/api/register':
             req_user_id = get_session_user(token)
             is_admin = False
+            is_super = False
             if req_user_id:
                 with get_db() as db:
                     row = fetchone(db, "SELECT username, is_admin FROM users WHERE id=?", (req_user_id,))
                     if row:
-                        role_val = row.get('role') or ('superadmin' if row['username']==ADMIN_USERNAME else ('manager' if int(row.get('is_admin') or 0)==1 else 'worker'))
-                        is_admin = role_val in ('superadmin','manager')
+                        is_super = (row['username'] == ADMIN_USERNAME)
+                        is_admin = is_super or int(row.get('is_admin') or 0) == 1
             if not is_admin and count_users() > 0:
-                print(f"Register blocked: req_user_id={req_user_id}, is_admin={is_admin}", flush=True)
-                return self.send_json(403, {'error': 'רק מנהל המערכת יכול ליצור משתמשים'})
+                return self.send_json(403, {'error': 'רק מנהל יכול ליצור משתמשים'})
             username = payload.get('username','').strip()
             password = payload.get('password','')
             if not username or not password:
@@ -505,12 +508,11 @@ class Handler(http.server.BaseHTTPRequestHandler):
             if len(password) < 4:
                 return self.send_json(400, {'error': 'סיסמה חייבת להיות לפחות 4 תווים'})
             new_user_is_admin = payload.get('is_admin', False)
-            # Only super-admin (ADMIN_USERNAME) can create other admins
-            with get_db() as db:
-                req_row = fetchone(db, "SELECT username FROM users WHERE id=?", (req_user_id,)) if req_user_id else None
-                is_super_admin = req_row and req_row['username'] == ADMIN_USERNAME
-            if new_user_is_admin and not is_super_admin:
-                new_user_is_admin = False  # Regular managers can only create workers
+            new_is_superadmin = payload.get('is_superadmin', False)
+            # Only superadmin can grant superadmin access
+            if not is_super:
+                new_user_is_admin = new_user_is_admin  # keep, just not superadmin
+                new_is_superadmin = False
             if create_user(username, password):
                 if new_user_is_admin:
                     with get_db() as db:
@@ -824,11 +826,20 @@ class Handler(http.server.BaseHTTPRequestHandler):
                 row = fetchone(db, "SELECT username FROM users WHERE id=?", (user_id,))
                 if not row or row['username'] != ADMIN_USERNAME:
                     return self.send_json(403, {'error': 'אין הרשאה'})
+                import time as _time
                 tc = fetchone(db, "SELECT COUNT(*) as n FROM companies")['n']
                 ac = fetchone(db, "SELECT COUNT(*) as n FROM companies WHERE active=1")['n']
                 tm = fetchone(db, "SELECT COUNT(*) as n FROM users WHERE is_admin=1 AND username!=?", (ADMIN_USERNAME,))['n']
                 tw = fetchone(db, "SELECT COUNT(*) as n FROM users WHERE is_admin=0 AND username!=?", (ADMIN_USERNAME,))['n']
-                return self.send_json(200, {'totalCompanies': tc, 'activeCompanies': ac, 'totalManagers': tm, 'totalWorkers': tw, 'totalUsers': tm+tw})
+                ts = (fetchone(db, "SELECT COUNT(*) as n FROM sessions WHERE created > ?", (_time.time()-86400,)) or {}).get('n',0)
+                csql = "SELECT c.id, c.name, c.plan, c.active, COUNT(DISTINCT CASE WHEN u.is_admin=1 THEN u.id END) as mgrs, COUNT(DISTINCT CASE WHEN u.is_admin=0 THEN u.id END) as wrkrs FROM companies c LEFT JOIN users u ON u.company_id=c.id GROUP BY c.id ORDER BY c.name"
+                comp_breakdown = fetchall(db, csql)
+                return self.send_json(200, {
+                    'totalCompanies': tc, 'activeCompanies': ac,
+                    'totalManagers': tm, 'totalWorkers': tw, 'totalUsers': tm+tw,
+                    'activeSessions': ts,
+                    'companyBreakdown': [{'id':c['id'],'name':c['name'],'plan':c['plan'],'active':c['active'],'managers':c['mgrs'],'workers':c['wrkrs']} for c in comp_breakdown]
+                })
 
         if path == '/api/companies/update':
             if not user_id: return self.send_json(401, {'error': 'לא מחובר'})
