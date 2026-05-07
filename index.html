@@ -360,6 +360,10 @@ td.locked-cell::after{content:'🔒';position:absolute;top:1px;right:1px;font-si
         <button class="logout-btn" onclick="doLogout()">יציאה</button>
       </div>
     </div>
+    <div style="display:flex;align-items:center;justify-content:space-between;padding:4px 0;margin-bottom:4px;border-bottom:1px solid var(--border)">
+      <span style="font-size:11px;display:flex;align-items:center;gap:4px;color:var(--muted)"><span id="cloudDot" style="width:7px;height:7px;border-radius:50%;background:#aaa;display:inline-block"></span><span id="cloudTxt">בודק...</span></span>
+      <button onclick="manualSave()" style="background:rgba(26,110,245,.1);border:1px solid rgba(26,110,245,.25);border-radius:5px;padding:2px 8px;font-size:11px;color:var(--blue);cursor:pointer;font-family:inherit">☁️ שמור</button>
+    </div>
     <!-- Cloud status bar -->
     <div style="display:flex;align-items:center;justify-content:space-between;padding:6px 0 2px;border-bottom:1px solid var(--border);margin-bottom:6px">
       <span id="cloudStatus" style="font-size:11px;display:flex;align-items:center;gap:5px;color:var(--muted)">
@@ -383,7 +387,7 @@ td.locked-cell::after{content:'🔒';position:absolute;top:1px;right:1px;font-si
       <div class="con-row"><span class="con-lbl">מינ׳ מנוחה (שע׳)</span><input class="con-inp" type="number" id="c_rest" value="11" min="8" max="24" onchange="saveState()"></div>
       <div class="con-row"><span class="con-lbl">מקס׳ לילות בשבוע</span><input class="con-inp" type="number" id="c_nights" value="2" min="0" max="7" onchange="saveState()"></div>
       <div class="con-row"><span class="con-lbl">מינ׳ כיסוי למשמרת</span><input class="con-inp" type="number" id="c_cover" value="2" min="1" max="10" onchange="saveState()"></div>
-      <div class="con-row"><span class="con-lbl">מקס׳ משמרות ו-ש</span><input class="con-inp" type="number" id="c_weekend" value="3" min="0" max="6" onchange="saveState()" title="מקסימום משמרות בשישי ושבת"></div>
+      <div class="con-row"><span class="con-lbl">מקס׳ משמרות ו-ש</span><input class="con-inp" type="number" id="c_weekend" value="3" min="0" max="6" onchange="saveState()"></div>
     </div>
 
     <div>
@@ -555,11 +559,6 @@ td.locked-cell::after{content:'🔒';position:absolute;top:1px;right:1px;font-si
         <label class="chk-item"><input type="checkbox" value="חמישי"> חמישי</label>
         <label class="chk-item"><input type="checkbox" value="שישי"> שישי</label>
         <label class="chk-item"><input type="checkbox" value="שבת"> שבת</label>
-      </div>
-      <!-- Per-day shift blocks: shown dynamically when a day is checked -->
-      <div id="dayShiftBlocksWrap" style="margin-top:8px;display:none">
-        <div style="font-size:11px;color:var(--muted);margin-bottom:5px">בחר אילו משמרות חסומות לכל יום (אם לא בחרת = כל המשמרות חסומות):</div>
-        <div id="dayShiftBlocksList" style="display:flex;flex-direction:column;gap:6px"></div>
       </div>
     </div>
     <div class="frow">
@@ -868,7 +867,6 @@ async function loadState(){
     if(C.rest)   document.getElementById('c_rest').value=C.rest;
     if(C.nights) document.getElementById('c_nights').value=C.nights;
     if(C.cover)  document.getElementById('c_cover').value=C.cover;
-    if(C.weekend!=null && document.getElementById('c_weekend')) document.getElementById('c_weekend').value=C.weekend;
     if(s.shifts&&s.shifts.length) shifts=s.shifts;
     if(s.weekStartDate){const el=document.getElementById('weekStartDate');if(el)el.value=s.weekStartDate;} else initWeekDate();
     renderShiftsLegend();
@@ -887,15 +885,30 @@ async function loadState(){
 }
 function getConstraints(){
   return {
-    wkmax:   +document.getElementById('c_wkmax').value,
-    consec:  +document.getElementById('c_consec').value,
-    rest:    +document.getElementById('c_rest').value,
-    nights:  +document.getElementById('c_nights').value,
-    cover:   +document.getElementById('c_cover').value,
-    weekend: +(document.getElementById('c_weekend')?.value||3),
+    wkmax:  +document.getElementById('c_wkmax').value,
+    consec: +document.getElementById('c_consec').value,
+    rest:   +document.getElementById('c_rest').value,
+    nights: +document.getElementById('c_nights').value,
+    cover:  +document.getElementById('c_cover').value,
+    weekend:+(document.getElementById('c_weekend')?.value||3),
   };
 }
 
+function startCloudPing(){
+  async function ping(){try{const r=await fetch('/api/me');updateCloudStatus(r.ok);}catch(e){updateCloudStatus(false);}}
+  ping(); setInterval(ping,30000);
+}
+function updateCloudStatus(ok){
+  const c=ok?'#22c55e':'#ef4444',t=ok?'מחובר ✓':'לא מחובר ✗';
+  ['cloudDot','wpCloudDot','adCloudDot'].forEach(id=>{const el=document.getElementById(id);if(el)el.style.background=c;});
+  ['cloudTxt','wpCloudTxt','adCloudTxt'].forEach(id=>{const el=document.getElementById(id);if(el)el.textContent=t;});
+}
+async function manualSave(){
+  const btn=event.currentTarget; btn.textContent='שומר...'; btn.disabled=true;
+  await saveState().catch(()=>{}); 
+  btn.textContent='☁️ שמור'; btn.disabled=false;
+  showToast('✅ נשמר');
+}
 function flashSaved(){
   const el=document.getElementById('saveInd');
   el.classList.add('show');
@@ -903,50 +916,6 @@ function flashSaved(){
   updateCloudStatus(true);
 }
 
-function updateCloudStatus(connected){
-  const color = connected ? '#22c55e' : '#ef4444';
-  const text = connected ? 'מחובר לענן ✓' : 'לא מחובר ✗';
-  // Manager sidebar
-  const dot=document.getElementById('cloudDot');
-  const txt=document.getElementById('cloudTxt');
-  if(dot) dot.style.background=color;
-  if(txt) txt.textContent=text;
-  // Worker screen
-  const wDot=document.getElementById('wpCloudDot');
-  const wTxt=document.getElementById('wpCloudTxt');
-  if(wDot) wDot.style.background=color;
-  if(wTxt) wTxt.textContent=connected?'מחובר ✓':'לא מחובר ✗';
-  // Admin dash
-  const aDot=document.getElementById('adCloudDot');
-  const aTxt=document.getElementById('adCloudTxt');
-  if(aDot) aDot.style.background=color;
-  if(aTxt) aTxt.textContent=connected?'מחובר ✓':'לא מחובר ✗';
-}
-
-async function manualSave(){
-  const btn=document.getElementById('cloudSaveBtn');
-  if(btn){btn.textContent='☁️ שומר...';btn.disabled=true;}
-  try{
-    await saveState();
-    showToast('✅ נשמר בענן בהצלחה');
-  }catch(e){
-    updateCloudStatus(false);
-    showToast('❌ שגיאה בשמירה לענן');
-  }
-  if(btn){btn.textContent='☁️ שמור';btn.disabled=false;}
-}
-
-// Ping server to check connection every 30s
-function startCloudPing(){
-  async function ping(){
-    try{
-      const r=await fetch('/api/me');
-      updateCloudStatus(r.ok);
-    }catch(e){ updateCloudStatus(false); }
-  }
-  ping();
-  setInterval(ping,30000);
-}
 
 // ═══════════════════════════════════════════════════════
 //  WORKERS
@@ -1004,7 +973,6 @@ function openModal(){
   const absWrap=document.getElementById('absenceDaysWrap');
   if(absWrap) absWrap.style.display='none';
   initDayPrefTable({});
-  updateDayShiftBlocksUI({});
   document.getElementById('overlay').classList.add('open');
 }
 
@@ -1029,44 +997,8 @@ function editWorker(id){
   const wrapEl=document.getElementById('absenceDaysWrap');
   if(wrapEl) wrapEl.style.display=(absType!=='none')?'block':'none';
   initDayPrefTable(w.dayPrefs||{});
-  updateDayShiftBlocksUI(w.blockedShifts||{});
   document.getElementById('overlay').classList.add('open');
 }
-
-function updateDayShiftBlocksUI(existingBlockedShifts){
-  const checkedDays=[...document.querySelectorAll('#blockedDaysGroup input:checked')].map(c=>c.value);
-  const wrap=document.getElementById('dayShiftBlocksWrap');
-  const list=document.getElementById('dayShiftBlocksList');
-  if(!wrap||!list) return;
-  if(checkedDays.length===0){wrap.style.display='none';return;}
-  wrap.style.display='block';
-  const shiftNames=getShiftNames();
-  list.innerHTML=checkedDays.map(day=>{
-    const blocked=existingBlockedShifts[day]||[];
-    return `<div style="display:flex;align-items:center;gap:8px;font-size:12px">
-      <span style="min-width:44px;color:var(--text)">${day}:</span>
-      ${shiftNames.map(sh=>`<label style="display:flex;align-items:center;gap:3px;cursor:pointer">
-        <input type="checkbox" class="day-shift-block" data-day="${day}" data-shift="${sh}" ${blocked.includes(sh)?'checked':''}> ${sh}
-      </label>`).join('')}
-      <span style="font-size:10px;color:var(--muted)">(סמן = חסום)</span>
-    </div>`;
-  }).join('');
-}
-
-// Hook blocked days checkboxes to show per-shift UI
-document.addEventListener('change',function(e){
-  if(e.target.closest&&e.target.closest('#blockedDaysGroup')){
-    const existingBlocked={};
-    document.querySelectorAll('.day-shift-block').forEach(cb=>{
-      if(cb.checked){
-        const d=cb.dataset.day,s=cb.dataset.shift;
-        if(!existingBlocked[d]) existingBlocked[d]=[];
-        existingBlocked[d].push(s);
-      }
-    });
-    updateDayShiftBlocksUI(existingBlocked);
-  }
-});
 
 function closeModal(){ document.getElementById('overlay').classList.remove('open'); editingId=null; }
 document.getElementById('overlay')?.addEventListener('click',e=>{if(e.target===e.currentTarget)closeModal()});
@@ -1089,7 +1021,6 @@ function saveWorker(){
     name,
     role:document.getElementById('f_role').value||'Shift Analyst',
     blockedDays:[...document.querySelectorAll('#blockedDaysGroup input:checked')].map(c=>c.value),
-    blockedShifts:(()=>{const bs={};document.querySelectorAll('.day-shift-block:checked').forEach(cb=>{const d=cb.dataset.day,s=cb.dataset.shift;if(!bs[d])bs[d]=[];bs[d].push(s);});return bs;})(),
     prefShifts:[...document.querySelectorAll('#prefShiftsGroup input:checked')].map(c=>c.value),
     notes:document.getElementById('f_notes').value,
     birthday:document.getElementById('f_birthday').value||'',
@@ -1203,26 +1134,13 @@ function runAlgorithm(C){
         // Hard constraints
         if(w.absenceDays&&w.absenceDays.includes(day)) return null;
         if((w.status==='vacation'||w.status==='sick')&&(!w.absenceDays||w.absenceDays.length===0)) return null;
-        // Blocked day — check if ALL shifts blocked, or only specific shifts
-        if(w.blockedDays.includes(day)){
-          const dayBlockedShifts=(w.blockedShifts||{})[day];
-          if(!dayBlockedShifts||dayBlockedShifts.length===0) return null; // whole day blocked
-          if(dayBlockedShifts.includes(sh)) return null; // this specific shift blocked
-        }
+        if(w.blockedDays.includes(day)) return null;
         if((w.dayPrefs||{})[day]==='off') return null; // day-specific block
-        if(c.byDay[di]!==null){
-          // Allow double-shift only if worker has allowDouble flag and shift is different
-          if(!w.allowDouble) return null;
-          if(c.byDay[di]===sh) return null; // same shift already
-        }
+        if(c.byDay[di]!==null) return null;
         if(isMorning && di>0 && didNight(w.name,di-1)) return null;
         if(consecutiveBefore(w.name,di) >= C.consec) return null;
         if(isNight && c.nights >= C.nights) return null;
         if(!isWE && c.weekdays >= C.wkmax) return null;
-        // Weekend max constraint
-        if(isWE && c.weekend >= (C.weekend||99)) return null;
-        // Training days: worker appears as ghost — counts but doesn't fill slot
-        const isTraining=(w.trainingDays||[]).includes(day);
 
         // Soft score — lower = more preferred
         let score = c.total * 80;
@@ -1241,11 +1159,7 @@ function runAlgorithm(C){
       }).filter(Boolean);
 
       candidates.sort((a,b)=>a.score-b.score);
-      // Separate: non-trainees fill slots, trainees added as ghost (📚)
-      const regularCandidates = candidates.filter(({w:ww})=>!(ww.trainingDays||[]).includes(day));
-      const traineeCandidates = candidates.filter(({w:ww})=>(ww.trainingDays||[]).includes(day));
-      const toAssign = regularCandidates.slice(0, C.cover);
-      const ghostTrainees = traineeCandidates.filter(({w:ww})=>!toAssign.find(a=>a.w.name===ww.name));
+      const toAssign = candidates.slice(0, C.cover);
 
       for(const {w} of toAssign){
         schedule[day][sh].push(w.name);
@@ -1255,23 +1169,11 @@ function runAlgorithm(C){
         if(isNight) c.nights++;
         if(isWE) c.weekend++; else c.weekdays++;
       }
-      // Add ghost trainees (shown in schedule but coverage not affected)
-      for(const {w} of ghostTrainees){
-        if(!schedule[day][sh].includes(w.name)){
-          schedule[day][sh].push('📚'+w.name); // prefix marks ghost
-          const c = st[w.name];
-          c.total++; c.byDay[di]=sh;
-          if(isNight) c.nights++;
-          if(isWE) c.weekend++; else c.weekdays++;
-        }
-      }
 
-      // Coverage check only counts non-ghost workers
-      const realCount = schedule[day][sh].filter(n=>!n.startsWith('📚')).length;
-      if(realCount < C.cover && pass===0){
+      if(schedule[day][sh].length < C.cover && pass===0){
         // will retry on pass 1
-      } else if(realCount < C.cover){
-        violations.push(`${day} ${sh}: ${realCount}/${C.cover} עובדים`);
+      } else if(schedule[day][sh].length < C.cover){
+        violations.push(`${day} ${sh}: ${schedule[day][sh].length}/${C.cover} עובדים`);
       }
     }
   }
@@ -1405,40 +1307,13 @@ function renderSchedule(result, fromCache){
       const hasShiftNote=!!shiftNotesCache[snKey];
       const lockKey=d+'|'+sh;
       const isLocked=lockedSlots[lockKey]&&lockedSlots[lockKey].includes(w.name);
-      if(assigned){
-        var _wn=w.name.replace(/&/g,'&amp;').replace(/"/g,'&quot;');
-        var _td='<td';
-        if(isLocked) _td+=' class="locked-cell"';
-        _td+=' style="'+br+(cellBg?';background:'+cellBg:'')+';cursor:pointer"';
-        _td+=' data-w="'+_wn+'" data-d="'+d+'" data-s="'+sh+'"';
-        _td+=' onclick="openShiftAction(this.dataset.w,this.dataset.d,this.dataset.s,true)"';
-        _td+=' title="'+(isLocked?'🔒 ':'')+(tip||'לחץ')+'">';
-        _td+='<span class="pill p'+getShiftCode(sh)+'">'+(sh==='בוקר'?'ב':sh==='צהריים'?'צ':'ל')+'</span>';
-        _td+='<span style="font-size:9px;display:block;text-align:center;margin-top:-2px">'+(isLocked?'🔒':hasShiftNote?'💬':cellBadge)+'</span></td>';
-        html+=_td;
-      } else if(isDayAbsent){
-        html+='<td style="background:rgba(240,167,66,.07);'+br+'" title="'+(w.absenceType==='vacation'?'חופש':'מחלה')+'"><span style="font-size:12px">'+absIcon+'</span></td>';
-      } else if(isOfficeOut&&!blocked){
-        html+='<td style="background:rgba(56,139,253,.06);'+br+'" title="🏃 מחוץ למשרד"><span style="font-size:12px">🏃</span></td>';
-      } else if(isTraining&&!blocked){
-        var _wt=w.name.replace(/&/g,'&amp;').replace(/"/g,'&quot;');
-        html+='<td style="background:rgba(57,208,160,.06);'+br+';cursor:pointer" title="📚 חפיפה"';
-        html+=' data-w="'+_wt+'" data-d="'+d+'" data-s="'+sh+'"';
-        html+=' onclick="openShiftAction(this.dataset.w,this.dataset.d,this.dataset.s,false)"';
-        html+='><span style="font-size:12px">📚</span></td>';
-      } else if(blocked){
-        var _wb=w.name.replace(/&/g,'&amp;').replace(/"/g,'&quot;');
-        html+='<td style="background:rgba(214,48,48,.04);'+br+';cursor:pointer" title="הוסף בכוח"';
-        html+=' data-w="'+_wb+'" data-d="'+d+'" data-s="'+sh+'"';
-        html+=' onclick="openShiftAction(this.dataset.w,this.dataset.d,this.dataset.s,false)"';
-        html+='><span style="color:rgba(214,48,48,.45);font-size:12px">✗</span></td>';
-      } else {
-        var _we=w.name.replace(/&/g,'&amp;').replace(/"/g,'&quot;');
-        html+='<td style="'+br+';cursor:pointer" title="הוסף משמרת"';
-        html+=' data-w="'+_we+'" data-d="'+d+'" data-s="'+sh+'"';
-        html+=' onclick="openShiftAction(this.dataset.w,this.dataset.d,this.dataset.s,false)"';
-        html+='><span class="poff">—</span></td>';
-      }
+      if(assigned) html+=`<td class="${isLocked?'locked-cell':''}" style="${br}${cellBg?`;background:${cellBg}`:''}cursor:pointer" onclick="openShiftNote('${w.name.replace(/'/g,"\'")}','${d}','${sh}')" title="${isLocked?'🔒 משמרת נעולה — '+tip:tip||'לחץ להוספת הערה'}"><span class="pill p${getShiftCode(sh)}">${sh==='בוקר'?'ב':sh==='צהריים'?'צ':'ל'}</span><span style="font-size:9px;display:block;text-align:center;margin-top:-2px">${isLocked?'🔒':hasShiftNote?'💬':cellBadge}</span></td>`;
+      else if(isDayAbsent) html+=`<td style="background:rgba(240,167,66,.07);${br}" title="${w.absenceType==='vacation'?'חופש':'מחלה'}"><span style="font-size:12px">${absIcon}</span></td>`;
+      else if(isOfficeOut&&!blocked) html+=`<td style="background:rgba(56,139,253,.06);${br}" title="🏃 מחוץ למשרד"><span style="font-size:12px">🏃</span></td>`;
+      else if(isTraining&&!blocked) html+=`<td style="background:rgba(57,208,160,.06);${br}" title="📚 הדרכה/חפיפה"><span style="font-size:12px">📚</span></td>`;
+      else if(blocked) html+=`<td style="background:rgba(214,48,48,.04);${br}"><span style="color:rgba(214,48,48,.45);font-size:12px">✗</span></td>`;
+      else html+=`<td style="${br};cursor:pointer" onclick="showWhyNotAssigned('${w.name.replace(/'/g,"\'")}','${d}','${sh}')" title="למה לא שובץ?"><span class="poff">—</span></td>`;
+    }
     html+='</tr>';
   }
   html+='</tbody>';
@@ -2108,92 +1983,6 @@ async function saveDayNote(){
 //  SHIFT NOTES
 // ═══════════════════════════════════════════════════════
 let _snWorker='',_snDay='',_snShift='';
-// ── Shift Action Modal (click on any cell) ──────────────────
-function openShiftAction(workerName, day, shift, isAssigned){
-  window._saWorker=workerName; window._saDay=day; window._saShift=shift;
-  const overlay=document.getElementById('shiftActionOverlay');
-  if(!overlay) return;
-  document.getElementById('saTitle').textContent=workerName+' \u2014 '+day+' \u2014 '+shift;
-  const shiftNames=getShiftNames();
-  var html='';
-  if(isAssigned){
-    html+='<button onclick="saRemoveShift()" style="width:100%;padding:10px;background:rgba(214,48,48,.1);border:1px solid rgba(214,48,48,.3);color:var(--red);border-radius:8px;cursor:pointer;font-family:inherit;font-size:13px;margin-bottom:8px">';
-    html+='\uD83D\uDDD1\uFE0F \u05d4\u05e1\u05e8 '+shift+' \u05d1\u05d9\u05d5\u05dd '+day+'</button>';
-    html+='<div style="font-size:12px;color:var(--muted);margin:8px 0 4px">\u05e9\u05e0\u05d4 \u05dc:</div>';
-    shiftNames.forEach(function(sh2){
-      if(sh2!==shift){
-        html+='<button data-sh="'+sh2+'" onclick="saChangeShift(this.dataset.sh)" style="width:100%;padding:9px;background:rgba(26,110,245,.08);border:1px solid var(--border2);border-radius:8px;cursor:pointer;font-family:inherit;font-size:13px;margin-bottom:6px">';
-        html+='\uD83D\uDD04 \u05e9\u05e0\u05d4 \u05dc'+sh2+'</button>';
-      }
-    });
-    html+='<div style="font-size:12px;color:var(--muted);margin:8px 0 4px">\u05d4\u05d5\u05e1\u05e3 \u05db\u05e4\u05d5\u05dc\u05d4:</div>';
-    shiftNames.forEach(function(sh2){
-      if(sh2!==shift){
-        html+='<button data-sh="'+sh2+'" onclick="saAddShift(this.dataset.sh)" style="width:100%;padding:9px;background:rgba(13,158,114,.08);border:1px solid rgba(13,158,114,.3);border-radius:8px;cursor:pointer;font-family:inherit;font-size:13px;color:var(--teal);margin-bottom:6px">';
-        html+='\u2795 \u05d2\u05dd '+sh2+'</button>';
-      }
-    });
-    html+='<hr style="margin:10px 0;border-color:var(--border)">';
-    html+='<button onclick="saOpenNote()" style="width:100%;padding:9px;background:var(--s3);border:1px solid var(--border);border-radius:8px;cursor:pointer;font-family:inherit;font-size:13px">';
-    html+='\uD83D\uDCAC \u05d4\u05e2\u05e8\u05d4</button>';
-  } else {
-    html+='<div style="font-size:12px;color:var(--muted);margin-bottom:8px">\u05e9\u05d1\u05e5 \u05dc:</div>';
-    shiftNames.forEach(function(sh2){
-      html+='<button data-sh="'+sh2+'" onclick="saAddShift(this.dataset.sh)" style="width:100%;padding:10px;background:rgba(26,110,245,.08);border:1px solid var(--border2);border-radius:8px;cursor:pointer;font-family:inherit;font-size:13px;margin-bottom:8px">';
-      html+='\u2795 '+sh2+' \u05d1\u05d9\u05d5\u05dd '+day+'</button>';
-    });
-  }
-  document.getElementById('saBody').innerHTML=html;
-  overlay.classList.add('open');
-}
-function saRemoveShift(){
-  if(!lastSchedule) return;
-  const wn=window._saWorker,day=window._saDay,sh=window._saShift;
-  if(lastSchedule[day]&&lastSchedule[day][sh]){
-    lastSchedule[day][sh]=lastSchedule[day][sh].filter(n=>n!==wn&&n!==('📚'+wn));
-    saveScheduleToServer(lastSchedule);
-    renderSchedule({schedule:lastSchedule,stats:lastStats||{},violations:[],notes:null},true);
-  }
-  document.getElementById('shiftActionOverlay').classList.remove('open');
-}
-
-function saChangeShift(newShift){
-  if(!lastSchedule) return;
-  const wn=window._saWorker,day=window._saDay,oldSh=window._saShift;
-  if(lastSchedule[day]){
-    if(lastSchedule[day][oldSh]) lastSchedule[day][oldSh]=lastSchedule[day][oldSh].filter(n=>n!==wn&&n!==('📚'+wn));
-    if(!lastSchedule[day][newShift]) lastSchedule[day][newShift]=[];
-    if(!lastSchedule[day][newShift].includes(wn)) lastSchedule[day][newShift].push(wn);
-    saveScheduleToServer(lastSchedule);
-    renderSchedule({schedule:lastSchedule,stats:lastStats||{},violations:[],notes:null},true);
-  }
-  document.getElementById('shiftActionOverlay').classList.remove('open');
-}
-
-function saAddShift(newShift){
-  if(!lastSchedule) return;
-  const wn=window._saWorker,day=window._saDay;
-  if(!lastSchedule[day]) lastSchedule[day]={};
-  if(!lastSchedule[day][newShift]) lastSchedule[day][newShift]=[];
-  if(!lastSchedule[day][newShift].includes(wn)) lastSchedule[day][newShift].push(wn);
-  saveScheduleToServer(lastSchedule);
-  renderSchedule({schedule:lastSchedule,stats:lastStats||{},violations:[],notes:null},true);
-  document.getElementById('shiftActionOverlay').classList.remove('open');
-}
-
-function saOpenNote(){
-  document.getElementById('shiftActionOverlay').classList.remove('open');
-  openShiftNote(window._saWorker,window._saDay,window._saShift);
-}
-
-async function saveScheduleToServer(schedule){
-  try{
-    await fetch('/api/save-schedule',{method:'POST',headers:{'Content-Type':'application/json'},
-      body:JSON.stringify({schedule,stats:lastStats})});
-    flashSaved();
-  }catch(e){}
-}
-
 function openShiftNote(worker,day,shift){
   _snWorker=worker;_snDay=day;_snShift=shift;
   const key=worker+'__'+day+'__'+shift;
@@ -2963,17 +2752,6 @@ function toggleDarkMode(){
   setTheme(isDark?'light':'dark');
 }
 
-function setTheme(mode){
-  if(mode==='dark'){
-    document.documentElement.setAttribute('data-theme','dark');
-    document.getElementById('themeToggleBtn').textContent='🌙';
-  } else {
-    document.documentElement.removeAttribute('data-theme');
-    document.getElementById('themeToggleBtn').textContent='☀️';
-  }
-  try{localStorage.setItem('sc_theme',mode);}catch(e){}
-  saveCustomize();
-}
 
 function loadTheme(){
   try{
@@ -3153,31 +2931,6 @@ async function loadAdminCompanies(){
   }catch(e){console.error(e);}
 }
 
-async function loadAdminUsers(){
-  try{
-    const d=await fetch('/api/users').then(r=>r.json()).catch(()=>({users:[]}));
-    const users=d.users||[];
-    const cMap={};_adCompanies.forEach(c=>cMap[c.id]=c.name);
-    const el=document.getElementById('adUsersTable');
-    if(!users.length){el.innerHTML='<div style="text-align:center;color:var(--muted);padding:24px">אין משתמשים</div>';return;}
-    el.innerHTML=`<table style="width:100%;border-collapse:collapse;font-size:13px">
-      <thead><tr style="border-bottom:2px solid var(--border)">
-        <th style="padding:8px 12px;text-align:right;color:var(--muted);font-weight:500">משתמש</th>
-        <th style="padding:8px;text-align:center;color:var(--muted);font-weight:500">תפקיד</th>
-        <th style="padding:8px;text-align:center;color:var(--muted);font-weight:500">חברה</th>
-        <th style="padding:8px;text-align:center;color:var(--muted);font-weight:500">פעולות</th>
-      </tr></thead><tbody>
-      ${users.map(u=>`<tr style="border-bottom:1px solid var(--border)">
-        <td style="padding:10px 12px;font-weight:500">${u.username}</td>
-        <td style="padding:10px;text-align:center"><span style="padding:2px 10px;border-radius:20px;font-size:11px;${u.isAdmin?'background:rgba(124,58,237,.1);color:#7c3aed':'background:rgba(90,100,120,.1);color:var(--muted)'}">${u.isAdmin?'👔 מנהל':'👤 עובד'}</span></td>
-        <td style="padding:10px;text-align:center;color:var(--muted);font-size:12px">${u.company_name||cMap[u.company_id]||'—'}</td>
-        <td style="padding:10px;text-align:center">
-          <button onclick="deleteAdminUser(${u.id},'${u.username.replace(/'/g,"\'")}');" style="background:rgba(214,48,48,.08);border:1px solid rgba(214,48,48,.2);color:var(--red);border-radius:5px;padding:4px 10px;font-size:11px;cursor:pointer;font-family:inherit">מחק</button>
-        </td>
-      </tr>`).join('')}
-      </tbody></table>`;
-  }catch(e){}
-}
 
 async function deleteAdminUser(id,name){
   if(!confirm(`למחוק "${name}"?`))return;
@@ -3627,20 +3380,6 @@ async function submitEditUser(){
     <div class="mactions">
       <button class="btn-cancel" onclick="closeShiftNote()">ביטול</button>
       <button class="btn-save" onclick="saveShiftNote()">שמור</button>
-    </div>
-  </div>
-</div>
-
-<!-- SHIFT ACTION MODAL -->
-<div class="overlay" id="shiftActionOverlay">
-  <div class="modal" style="width:360px;max-height:80vh;overflow-y:auto">
-    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px">
-      <div style="font-size:14px;font-weight:600" id="saTitle">פעולות משמרת</div>
-      <button onclick="document.getElementById('shiftActionOverlay').classList.remove('open')" style="background:none;border:none;font-size:22px;cursor:pointer;color:var(--muted);line-height:1">×</button>
-    </div>
-    <div id="saBody"></div>
-    <div style="margin-top:10px">
-      <button onclick="document.getElementById('shiftActionOverlay').classList.remove('open')" style="width:100%;padding:9px;background:var(--s3);border:1px solid var(--border);border-radius:8px;cursor:pointer;font-family:inherit;font-size:13px">ביטול</button>
     </div>
   </div>
 </div>
