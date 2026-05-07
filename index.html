@@ -2083,38 +2083,42 @@ async function saveDayNote(){
 let _snWorker='',_snDay='',_snShift='';
 // ── Shift Action Modal (click on any cell) ──────────────────
 function openShiftAction(workerName, day, shift, isAssigned){
-  window._saWorker=workerName; window._saDay=day; window._saShift=shift; window._saAssigned=isAssigned;
+  window._saWorker=workerName; window._saDay=day; window._saShift=shift;
   const overlay=document.getElementById('shiftActionOverlay');
   if(!overlay) return;
-  const title=overlay.querySelector('#saTitle');
-  const body=overlay.querySelector('#saBody');
+  document.getElementById('saTitle').textContent=workerName+' \u2014 '+day+' \u2014 '+shift;
   const shiftNames=getShiftNames();
-  title.textContent=workerName+' — '+day+' — '+shift;
-  let html='';
+  var html='';
   if(isAssigned){
-    html+='<div style="margin-bottom:14px"><div style="font-size:12px;color:var(--muted);margin-bottom:8px">פעולות:</div>';
-    html+='<button onclick="saRemoveShift()" style="width:100%;padding:10px;background:rgba(214,48,48,.1);border:1px solid rgba(214,48,48,.3);color:var(--red);border-radius:8px;cursor:pointer;font-family:inherit;font-size:13px;margin-bottom:8px">🗑️ הסר משמרת '+shift+' ביום '+day+'</button>';
-    html+='<div style="font-size:12px;color:var(--muted);margin:10px 0 6px">שנה ל:</div>';
-    for(const sh2 of shiftNames){
-      if(sh2!==shift) html+='<button onclick="saChangeShift(''+sh2+'')" style="width:100%;padding:9px;background:rgba(26,110,245,.08);border:1px solid var(--border2);border-radius:8px;cursor:pointer;font-family:inherit;font-size:13px;margin-bottom:6px">🔄 שנה ל'+sh2+'</button>';
-    }
-    html+='<div style="font-size:12px;color:var(--muted);margin:10px 0 6px">הוסף משמרת נוספת (כפולה):</div>';
-    for(const sh2 of shiftNames){
-      if(sh2!==shift) html+='<button onclick="saAddShift(''+sh2+'')" style="width:100%;padding:9px;background:rgba(13,158,114,.08);border:1px solid rgba(13,158,114,.3);border-radius:8px;cursor:pointer;font-family:inherit;font-size:13px;color:var(--teal);margin-bottom:6px">➕ הוסף גם '+sh2+'</button>';
-    }
-    html+='<hr style="margin:10px 0;border-color:var(--border)"><button onclick="saOpenNote()" style="width:100%;padding:9px;background:var(--s3);border:1px solid var(--border);border-radius:8px;cursor:pointer;font-family:inherit;font-size:13px">💬 הוסף הערה</button>';
-    html+='</div>';
+    html+='<button onclick="saRemoveShift()" style="width:100%;padding:10px;background:rgba(214,48,48,.1);border:1px solid rgba(214,48,48,.3);color:var(--red);border-radius:8px;cursor:pointer;font-family:inherit;font-size:13px;margin-bottom:8px">';
+    html+='\uD83D\uDDD1\uFE0F \u05d4\u05e1\u05e8 '+shift+' \u05d1\u05d9\u05d5\u05dd '+day+'</button>';
+    html+='<div style="font-size:12px;color:var(--muted);margin:8px 0 4px">\u05e9\u05e0\u05d4 \u05dc:</div>';
+    shiftNames.forEach(function(sh2){
+      if(sh2!==shift){
+        html+='<button data-sh="'+sh2+'" onclick="saChangeShift(this.dataset.sh)" style="width:100%;padding:9px;background:rgba(26,110,245,.08);border:1px solid var(--border2);border-radius:8px;cursor:pointer;font-family:inherit;font-size:13px;margin-bottom:6px">';
+        html+='\uD83D\uDD04 \u05e9\u05e0\u05d4 \u05dc'+sh2+'</button>';
+      }
+    });
+    html+='<div style="font-size:12px;color:var(--muted);margin:8px 0 4px">\u05d4\u05d5\u05e1\u05e3 \u05db\u05e4\u05d5\u05dc\u05d4:</div>';
+    shiftNames.forEach(function(sh2){
+      if(sh2!==shift){
+        html+='<button data-sh="'+sh2+'" onclick="saAddShift(this.dataset.sh)" style="width:100%;padding:9px;background:rgba(13,158,114,.08);border:1px solid rgba(13,158,114,.3);border-radius:8px;cursor:pointer;font-family:inherit;font-size:13px;color:var(--teal);margin-bottom:6px">';
+        html+='\u2795 \u05d2\u05dd '+sh2+'</button>';
+      }
+    });
+    html+='<hr style="margin:10px 0;border-color:var(--border)">';
+    html+='<button onclick="saOpenNote()" style="width:100%;padding:9px;background:var(--s3);border:1px solid var(--border);border-radius:8px;cursor:pointer;font-family:inherit;font-size:13px">';
+    html+='\uD83D\uDCAC \u05d4\u05e2\u05e8\u05d4</button>';
   } else {
-    html+='<div style="margin-bottom:14px"><div style="font-size:12px;color:var(--muted);margin-bottom:8px">שבץ עובד זה ל:</div>';
-    for(const sh2 of shiftNames){
-      html+='<button onclick="saAddShift(''+sh2+'')" style="width:100%;padding:10px;background:rgba(26,110,245,.08);border:1px solid var(--border2);border-radius:8px;cursor:pointer;font-family:inherit;font-size:13px;margin-bottom:8px">➕ שבץ ל'+sh2+' ביום '+day+'</button>';
-    }
-    html+='</div>';
+    html+='<div style="font-size:12px;color:var(--muted);margin-bottom:8px">\u05e9\u05d1\u05e5 \u05dc:</div>';
+    shiftNames.forEach(function(sh2){
+      html+='<button data-sh="'+sh2+'" onclick="saAddShift(this.dataset.sh)" style="width:100%;padding:10px;background:rgba(26,110,245,.08);border:1px solid var(--border2);border-radius:8px;cursor:pointer;font-family:inherit;font-size:13px;margin-bottom:8px">';
+      html+='\u2795 '+sh2+' \u05d1\u05d9\u05d5\u05dd '+day+'</button>';
+    });
   }
-  body.innerHTML=html;
+  document.getElementById('saBody').innerHTML=html;
   overlay.classList.add('open');
 }
-
 function saRemoveShift(){
   if(!lastSchedule) return;
   const wn=window._saWorker,day=window._saDay,sh=window._saShift;
