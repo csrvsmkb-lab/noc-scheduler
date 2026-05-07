@@ -1405,13 +1405,24 @@ function renderSchedule(result, fromCache){
       const hasShiftNote=!!shiftNotesCache[snKey];
       const lockKey=d+'|'+sh;
       const isLocked=lockedSlots[lockKey]&&lockedSlots[lockKey].includes(w.name);
-      if(assigned) html+=`<td class="${isLocked?'locked-cell':''}" style="${br}${cellBg?`;background:${cellBg}`:''}cursor:pointer" onclick="openShiftAction('${w.name.replace(/'/g,\"\\\\\")]}',${'${d}'},${'${sh}'},true)" title="${isLocked?'🔒 ':''+(tip||'לחץ לשינוי')}"><span class="pill p${getShiftCode(sh)}">${sh==='בוקר'?'ב':sh==='צהריים'?'צ':'ל'}</span><span style="font-size:9px;display:block;text-align:center;margin-top:-2px">${isLocked?'🔒':hasShiftNote?'💬':cellBadge}</span></td>`;
-      else if(isDayAbsent) html+=`<td style="background:rgba(240,167,66,.07);${br}" title="${w.absenceType==='vacation'?'חופש':'מחלה'}"><span style="font-size:12px">${absIcon}</span></td>`;
-      else if(isOfficeOut&&!blocked) html+=`<td style="background:rgba(56,139,253,.06);${br}" title="🏃 מחוץ למשרד"><span style="font-size:12px">🏃</span></td>`;
-      else if(isTraining&&!blocked) html+=`<td style="background:rgba(57,208,160,.06);${br}" title="📚 הדרכה/חפיפה"><span style="font-size:12px">📚</span></td>`;
-      else if(isTraining&&!blocked) html+=`<td style="background:rgba(57,208,160,.06);${br}" title="📚 חפיפה — לחץ להוספת" onclick="openShiftAction('${w.name.replace(/'/g,'\\'')}','${d}','${sh}',false)"><span style="cursor:pointer;font-size:12px">📚</span></td>`;
-      else if(blocked) html+=`<td style="background:rgba(214,48,48,.04);${br}" title="לחץ להוספת בכוח" onclick="openShiftAction('${w.name.replace(/'/g,'\\'')}','${d}','${sh}',false)"><span style="color:rgba(214,48,48,.45);font-size:12px;cursor:pointer">✗</span></td>`;
-      else html+=`<td style="${br};cursor:pointer" onclick="openShiftAction('${w.name.replace(/'/g,'\\'')}','${d}','${sh}',false)" title="הוסף משמרת"><span class="poff">—</span></td>`;
+      if(assigned){
+        var _wn=w.name.replace(/&/g,'&amp;').replace(/"/g,'&quot;');
+        html+='<td class="'+(isLocked?'locked-cell':'')+''+'\" style=\"'+br+(cellBg?';background:'+cellBg:'')+';cursor:pointer\" data-w=\"'+_wn+'\" data-d=\"'+d+'\" data-s=\"'+sh+'\" onclick=\"openShiftAction(this.dataset.w,this.dataset.d,this.dataset.s,true)\" title=\"'+(isLocked?'🔒 ':'')+(tip||'לחץ')+'\">'+'
+          '<span class="pill p'+getShiftCode(sh)+'">'+(sh==='בוקר'?'ב':sh==='צהריים'?'צ':'ל')+'</span>'+'<span style="font-size:9px;display:block;text-align:center;margin-top:-2px">'+(isLocked?'🔒':hasShiftNote?'💬':cellBadge)+'</span></td>';
+      } else if(isDayAbsent){
+        html+='<td style="background:rgba(240,167,66,.07);'+br+'" title="'+(w.absenceType==='vacation'?'חופש':'מחלה')+'"><span style="font-size:12px">'+absIcon+'</span></td>';
+      } else if(isOfficeOut&&!blocked){
+        html+='<td style="background:rgba(56,139,253,.06);'+br+'" title="🏃 מחוץ למשרד"><span style="font-size:12px">🏃</span></td>';
+      } else if(isTraining&&!blocked){
+        var _wt=w.name.replace(/&/g,'&amp;').replace(/"/g,'&quot;');
+        html+='<td style="background:rgba(57,208,160,.06);'+br+';cursor:pointer" title="📚 חפיפה" data-w="'+_wt+'" data-d="'+d+'" data-s="'+sh+'" onclick="openShiftAction(this.dataset.w,this.dataset.d,this.dataset.s,false)"><span style="font-size:12px">📚</span></td>';
+      } else if(blocked){
+        var _wb=w.name.replace(/&/g,'&amp;').replace(/"/g,'&quot;');
+        html+='<td style="background:rgba(214,48,48,.04);'+br+';cursor:pointer" title="הוסף בכוח" data-w="'+_wb+'" data-d="'+d+'" data-s="'+sh+'" onclick="openShiftAction(this.dataset.w,this.dataset.d,this.dataset.s,false)"><span style="color:rgba(214,48,48,.45);font-size:12px">✗</span></td>';
+      } else {
+        var _we=w.name.replace(/&/g,'&amp;').replace(/"/g,'&quot;');
+        html+='<td style="'+br+';cursor:pointer" title="הוסף משמרת" data-w="'+_we+'" data-d="'+d+'" data-s="'+sh+'" onclick="openShiftAction(this.dataset.w,this.dataset.d,this.dataset.s,false)"><span class="poff">—</span></td>';
+      }
     html+='</tr>';
   }
   html+='</tbody>';
