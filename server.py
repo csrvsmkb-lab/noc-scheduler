@@ -232,6 +232,7 @@ def init_db():
     for col_sql in [
         "ALTER TABLE users ADD COLUMN is_admin INTEGER DEFAULT 0",
         "ALTER TABLE users ADD COLUMN last_login TEXT DEFAULT NULL",
+        "ALTER TABLE users ADD COLUMN company_id INTEGER DEFAULT NULL",
     ]:
         try:
             with get_db() as db:

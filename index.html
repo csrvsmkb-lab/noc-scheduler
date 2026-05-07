@@ -775,17 +775,18 @@ async function doLogin(){
 function routeByRole(md){
   const role=md.role||'worker';
   document.getElementById('loginScreen').style.display='none';
+  const ads=document.getElementById('adminDashScreen');
   if(role==='superadmin'){
-    let ads=document.getElementById('adminDashScreen');
-    if(!ads){ads=buildAdminDash(md.username);document.body.appendChild(ads);}
+    let adsEl=ads;
+    if(!adsEl){adsEl=buildAdminDash(md.username);document.body.appendChild(adsEl);}
     document.getElementById('appScreen').classList.remove('vis');
     const ws=document.getElementById('workerScreen');if(ws)ws.classList.remove('vis');
-    ads.style.display='block';
+    adsEl.style.display='block';
     loadAdminDash();
   } else if(role==='manager'){
     if(ads)ads.style.display='none';
     const ws=document.getElementById('workerScreen');if(ws)ws.classList.remove('vis');
-    showApp(md.username);
+    showApp(md.username, md.role);
     loadState().then(()=>{loadNotes();loadLockedSlots();checkUnreadRequests();});
   } else {
     if(ads)ads.style.display='none';
@@ -804,14 +805,24 @@ async function doLogout(){
   document.getElementById('loginPass').value='';
   try{localStorage.removeItem('sc_last_role');localStorage.removeItem('sc_last_user');}catch(e){}
 }
-function showApp(username){
+function showApp(username, role){
   window._myUsername = username;
   document.getElementById('loginScreen').style.display='none';
   document.getElementById('appScreen').classList.add('vis');
-  if(username) document.getElementById('userChip').textContent=username;
+  if(username){
+    const isSuperAdmin = role==='superadmin';
+    document.getElementById('userChip').textContent = isSuperAdmin ? '👑 ' + username : username;
+    const adminBtn = document.getElementById('adminBtn');
+    if(adminBtn){
+      if(role==='manager' || isSuperAdmin){
+        adminBtn.style.display='flex';
+      } else {
+        adminBtn.style.display='none';
+      }
+    }
+  }
   renderShiftsLegend();
   updatePrefShiftsModal();
-
 }
 document.getElementById('loginPass').addEventListener('keydown',e=>{if(e.key==='Enter')doLogin()});
 document.getElementById('loginUser').addEventListener('keydown',e=>{if(e.key==='Enter')document.getElementById('loginPass').focus()});
