@@ -764,6 +764,14 @@ class Handler(http.server.BaseHTTPRequestHandler):
                 urow = fetchone(db, "SELECT username FROM users WHERE id=?", (user_id,))
                 if not urow: return self.send_json(401, {'error': 'לא מחובר'})
                 username = urow['username']
+                # Find all managers (is_admin=1) and look for one whose workers list includes this username
+                managers = fetchall(db, "SELECT id FROM users WHERE is_admin=1")
+                for mgr in managers:
+                    mdata = load_user_data(mgr['id'])
+                    worker_names = [w['name'] for w in mdata.get('workers', [])]
+                    if username in worker_names:
+                        return self.send_json(200, {'username': username, 'schedule': mdata.get('lastSchedule',{}), 'generated': mdata.get('lastGenerated','')})
+                # Fallback: try ADMIN_USERNAME
                 admin_row = fetchone(db, "SELECT id FROM users WHERE username=?", (ADMIN_USERNAME,))
                 if admin_row:
                     data = load_user_data(admin_row['id'])
@@ -773,14 +781,10 @@ class Handler(http.server.BaseHTTPRequestHandler):
         # ── Get workers list for employee dropdown ────────
         if path == '/api/workers-list':
             if not user_id: return self.send_json(401, {'error': 'לא מחובר'})
-            # Get workers from admin's data
-            with get_db() as db:
-                admin_row = fetchone(db, "SELECT id FROM users WHERE username=?", (ADMIN_USERNAME,))
-                if admin_row:
-                    data = load_user_data(admin_row['id'])
-                    workers = [{'name': w['name'], 'role': w.get('role','')} for w in data.get('workers', [])]
-                    return self.send_json(200, {'workers': workers})
-            return self.send_json(200, {'workers': []})
+            # Get workers from current user's data (manager sees their own workers)
+            data = load_user_data(user_id)
+            workers = [{'name': w['name'], 'role': w.get('role','')} for w in data.get('workers', [])]
+            return self.send_json(200, {'workers': workers})
 
         # ── Companies ─────────────────────────────────────
         if path == '/api/companies':

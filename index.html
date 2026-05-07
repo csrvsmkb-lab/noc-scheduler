@@ -360,6 +360,14 @@ td.locked-cell::after{content:'🔒';position:absolute;top:1px;right:1px;font-si
         <button class="logout-btn" onclick="doLogout()">יציאה</button>
       </div>
     </div>
+    <!-- Cloud status bar -->
+    <div style="display:flex;align-items:center;justify-content:space-between;padding:6px 0 2px;border-bottom:1px solid var(--border);margin-bottom:6px">
+      <span id="cloudStatus" style="font-size:11px;display:flex;align-items:center;gap:5px;color:var(--muted)">
+        <span id="cloudDot" style="width:8px;height:8px;border-radius:50%;background:#aaa;display:inline-block;transition:background .3s"></span>
+        <span id="cloudTxt">בודק חיבור...</span>
+      </span>
+      <button onclick="manualSave()" id="cloudSaveBtn" title="שמור לענן עכשיו" style="background:rgba(26,110,245,.1);border:1px solid rgba(26,110,245,.25);border-radius:5px;padding:3px 9px;font-size:11px;color:var(--blue);cursor:pointer;font-family:inherit;display:flex;align-items:center;gap:4px">☁️ שמור</button>
+    </div>
 
     <div>
       <div class="sec">עובדים</div>
@@ -783,6 +791,7 @@ function routeByRole(md){
     const ws=document.getElementById('workerScreen');if(ws)ws.classList.remove('vis');
     adsEl.style.display='block';
     loadAdminDash();
+    startCloudPing();
   } else if(role==='manager'){
     if(ads)ads.style.display='none';
     const ws=document.getElementById('workerScreen');if(ws)ws.classList.remove('vis');
@@ -823,6 +832,7 @@ function showApp(username, role){
   }
   renderShiftsLegend();
   updatePrefShiftsModal();
+  startCloudPing();
 }
 document.getElementById('loginPass').addEventListener('keydown',e=>{if(e.key==='Enter')doLogin()});
 document.getElementById('loginUser').addEventListener('keydown',e=>{if(e.key==='Enter')document.getElementById('loginPass').focus()});
@@ -882,6 +892,52 @@ function flashSaved(){
   const el=document.getElementById('saveInd');
   el.classList.add('show');
   setTimeout(()=>el.classList.remove('show'),1600);
+  updateCloudStatus(true);
+}
+
+function updateCloudStatus(connected){
+  const color = connected ? '#22c55e' : '#ef4444';
+  const text = connected ? 'מחובר לענן ✓' : 'לא מחובר ✗';
+  // Manager sidebar
+  const dot=document.getElementById('cloudDot');
+  const txt=document.getElementById('cloudTxt');
+  if(dot) dot.style.background=color;
+  if(txt) txt.textContent=text;
+  // Worker screen
+  const wDot=document.getElementById('wpCloudDot');
+  const wTxt=document.getElementById('wpCloudTxt');
+  if(wDot) wDot.style.background=color;
+  if(wTxt) wTxt.textContent=connected?'מחובר ✓':'לא מחובר ✗';
+  // Admin dash
+  const aDot=document.getElementById('adCloudDot');
+  const aTxt=document.getElementById('adCloudTxt');
+  if(aDot) aDot.style.background=color;
+  if(aTxt) aTxt.textContent=connected?'מחובר ✓':'לא מחובר ✗';
+}
+
+async function manualSave(){
+  const btn=document.getElementById('cloudSaveBtn');
+  if(btn){btn.textContent='☁️ שומר...';btn.disabled=true;}
+  try{
+    await saveState();
+    showToast('✅ נשמר בענן בהצלחה');
+  }catch(e){
+    updateCloudStatus(false);
+    showToast('❌ שגיאה בשמירה לענן');
+  }
+  if(btn){btn.textContent='☁️ שמור';btn.disabled=false;}
+}
+
+// Ping server to check connection every 30s
+function startCloudPing(){
+  async function ping(){
+    try{
+      const r=await fetch('/api/me');
+      updateCloudStatus(r.ok);
+    }catch(e){ updateCloudStatus(false); }
+  }
+  ping();
+  setInterval(ping,30000);
 }
 
 // ═══════════════════════════════════════════════════════
@@ -2515,6 +2571,7 @@ function showWorkerPortal(username){
   wpInitWeekDate();
   wpInitDayPrefTable();
   wpShowTab('requests');
+  startCloudPing();
   // Listen to absence radio
   document.querySelectorAll('input[name="wp_absence"]').forEach(r=>{
     r.addEventListener('change',()=>{
@@ -2787,7 +2844,12 @@ function buildAdminDash(username){
         <span style="font-size:10px;background:rgba(124,58,237,.1);color:#7c3aed;border:1px solid rgba(124,58,237,.25);border-radius:4px;padding:2px 8px">Super Admin</span>
       </div>
       <div style="display:flex;align-items:center;gap:10px">
-        <span style="font-size:12px;color:var(--muted)">${username}</span>
+        <span id="adCloudStatus" style="font-size:11px;display:flex;align-items:center;gap:4px;color:var(--muted)">
+          <span id="adCloudDot" style="width:7px;height:7px;border-radius:50%;background:#aaa;display:inline-block"></span>
+          <span id="adCloudTxt">בודק...</span>
+        </span>
+        <span style="font-size:12px;color:var(--muted)">👑 ${username}</span>
+        <button onclick="openCustomize()" style="background:rgba(13,158,114,.1);border:1px solid rgba(13,158,114,.3);color:var(--teal);border-radius:6px;padding:5px 10px;cursor:pointer;font-size:13px" title="הגדרות תצוגה">⚙️</button>
         <button onclick="toggleDarkMode()" id="adminThemeBtn" style="background:var(--s3);border:1px solid var(--border);border-radius:6px;padding:5px 10px;cursor:pointer;font-size:13px">☀️</button>
         <button onclick="safeRefresh()" style="background:var(--s3);border:1px solid var(--border);border-radius:6px;padding:5px 10px;cursor:pointer;font-size:13px" title="רענן">🔄</button>
         <button onclick="doLogout()" style="background:none;border:1px solid var(--border);border-radius:6px;padding:5px 12px;font-size:12px;cursor:pointer;color:var(--muted);font-family:inherit">יציאה</button>
@@ -3438,6 +3500,10 @@ async function submitEditUser(){
   <div class="wp-header">
     <div class="wp-logo">🔷 ShiftCraft AI</div>
     <div style="display:flex;align-items:center;gap:10px">
+      <span id="wpCloudStatus" style="font-size:11px;display:flex;align-items:center;gap:4px;color:var(--muted)">
+        <span id="wpCloudDot" style="width:7px;height:7px;border-radius:50%;background:#aaa;display:inline-block"></span>
+        <span id="wpCloudTxt">בודק...</span>
+      </span>
       <span style="font-size:13px;color:var(--muted)" id="wpUsername"></span>
       <button onclick="doLogout()" style="background:none;border:1px solid var(--border2);border-radius:6px;padding:5px 12px;font-size:12px;cursor:pointer;font-family:inherit;color:var(--muted)">יציאה</button>
     </div>
@@ -3578,7 +3644,7 @@ async function submitEditUser(){
 <div class="overlay" id="addMgrOverlay">
   <div class="modal" style="width:420px">
     <div class="modal-title" id="addMgrTitle">👔 הוסף מנהל משמרות</div>
-    <div class="frow"><label class="flabel">חברה</label><select class="finput" id="addMgrCompSel" style="margin-top:4px"><option value="">— בחר —</option></select></div>
+    <div class="frow"><label class="flabel">חברה <span style="color:var(--muted);font-size:10px">(אופציונלי)</span></label><select class="finput" id="addMgrCompSel" style="margin-top:4px"><option value="">— ללא חברה / בחר —</option></select></div>
     <div class="frow"><label class="flabel">שם משתמש</label><input class="finput" id="addMgrUn" placeholder="שם משתמש" style="margin-top:4px"></div>
     <div class="frow"><label class="flabel">סיסמה</label><input class="finput" type="password" id="addMgrPw" placeholder="מינ׳ 4 תווים" style="margin-top:4px"></div>
     <div class="frow" id="addMgrRoleWrap">
