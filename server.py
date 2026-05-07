@@ -415,6 +415,16 @@ class Handler(http.server.BaseHTTPRequestHandler):
             if not user_id: return self.send_json(401, {'error': 'לא מחובר'})
             return self.send_json(200, load_user_data(user_id))
 
+        # ── Companies (GET) ───────────────────────────────
+        if path == '/api/companies':
+            if not user_id: return self.send_json(401, {'error': 'לא מחובר'})
+            with get_db() as db:
+                row = fetchone(db, "SELECT username FROM users WHERE id=?", (user_id,))
+                if not row or row['username'] != ADMIN_USERNAME:
+                    return self.send_json(403, {'error': 'אין הרשאה'})
+                companies = fetchall(db, "SELECT id, name, plan, active, created FROM companies ORDER BY created DESC")
+                return self.send_json(200, {'companies': companies})
+
         # ── /api/users via GET (admin only) ──────────────
         if path == '/api/users':
             if not user_id:
@@ -834,6 +844,16 @@ class Handler(http.server.BaseHTTPRequestHandler):
                 comp = fetchone(db, "SELECT active FROM companies WHERE id=?", (cid,))
                 if not comp: return self.send_json(404, {'error': 'לא נמצאה'})
                 execute(db, "UPDATE companies SET active=? WHERE id=?", (0 if comp['active'] else 1, cid))
+            return self.send_json(200, {'ok': True})
+
+        if path == '/api/companies/delete':
+            if not user_id: return self.send_json(401, {'error': 'לא מחובר'})
+            with get_db() as db:
+                row = fetchone(db, "SELECT username FROM users WHERE id=?", (user_id,))
+                if not row or row['username'] != ADMIN_USERNAME:
+                    return self.send_json(403, {'error': 'אין הרשאה'})
+                cid = payload.get('company_id')
+                execute(db, "DELETE FROM companies WHERE id=?", (cid,))
             return self.send_json(200, {'ok': True})
 
         self.send_json(404, {'error': 'Not found'})

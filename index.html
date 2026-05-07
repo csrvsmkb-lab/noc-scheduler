@@ -57,6 +57,7 @@ body{background:var(--bg);color:var(--text);font-family:'IBM Plex Sans Hebrew',s
 
 /* APP */
 #appScreen{display:none}
+#appScreen.vis{display:grid;grid-template-columns:280px 1fr;min-height:100vh}
 #appScreen.vis{display:grid;grid-template-columns:300px 1fr;min-height:100vh}
 
 .sidebar{background:var(--s1);border-left:1px solid var(--border);padding:18px 14px;display:flex;flex-direction:column;gap:16px;overflow-y:auto}
@@ -3087,6 +3088,15 @@ async function toggleCompanyActive(id, currentActive){
   await fetch('/api/companies/toggle',{method:'POST',headers:{'Content-Type':'application/json'},
     body:JSON.stringify({company_id:id})}).then(r=>r.json());
   loadAdminCompanies(); loadAdminStats();
+}
+
+
+async function deleteCompany(id, name){
+  if(!confirm('למחוק את החברה "'+name+'"? פעולה זו אינה הפיכה.')) return;
+  const d=await fetch('/api/companies/delete',{method:'POST',headers:{'Content-Type':'application/json'},
+    body:JSON.stringify({company_id:id})}).then(r=>r.json());
+  if(d.ok){showToast('✓ חברה נמחקה');loadAdminCompanies();loadAdminStats();}
+  else alert(d.error||'שגיאה');
 }
 
 </script>
